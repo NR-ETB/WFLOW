@@ -3,7 +3,7 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const sourcePath = path.join(root, 'Ningun Servicio Funciona - v10 Etiquetas con Imagenes.json');
-const outputPath = path.join(root, 'Ningun Servicio Funciona - v11.7 Auditada CRM Responsive SQL.json');
+const outputPath = path.join(root, 'Ningun Servicio Funciona - 1.json');
 
 const workflow = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
 
@@ -32,6 +32,10 @@ function cloneNode(sourceName, overrides) {
   return clone;
 }
 
+function slug(value) {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 function patchForm(nodeName, changes) {
   const node = getNode(nodeName);
   const code = node.parameters.jsCode;
@@ -40,7 +44,7 @@ function patchForm(nodeName, changes) {
 
   const cfg = Object.assign(JSON.parse(match[1]), changes, {
     rendererVersion: 'v11.7',
-    startPath: 'etb-form',
+    startPath: changes.startPath || 'etb-form',
     backButtonLabel: 'Volver',
   });
 
@@ -140,22 +144,23 @@ function patchForm(nodeName, changes) {
       const markerIndex = parsed.pathname.indexOf(marker);
       if (markerIndex >= 0) { basePath = parsed.pathname.slice(0, markerIndex); break; }
     }
-    const prefix = executionMode === 'test' ? 'webhook-test' : 'webhook';
+    const prefix = cfg.handoffSession ? 'webhook' : (executionMode === 'test' ? 'webhook-test' : 'webhook');
     parsed.pathname = basePath + '/' + prefix + '/' + cleanStartPath;
     parsed.search = '';
     parsed.hash = '';
     startUrl = parsed.toString();
   } catch (e) {}
   const startUrlJson = JSON.stringify(startUrl);
-  const testFlag = executionMode === 'test' ? 'true' : 'false';`,
+  const testFlag = executionMode === 'test' ? 'true' : 'false';
+  const handoffFlag = cfg.handoffSession ? 'true' : 'false';`,
   );
   updated = updated.replace(
     /function getStartUrl\(\)\{.*?\}var cfgFinishToStart=/,
-    `var startUrl=' + startUrlJson + ';var isTestMode=' + testFlag + ';function showCompletion(){var card=document.querySelector(".card");if(!card)return;card.innerHTML="<div class=\\'completion\\'><div class=\\'completion-icon\\' aria-hidden=\\'true\\'>&#10003;</div><h1 class=\\'completion-title\\'>Proceso finalizado</h1><p class=\\'completion-copy\\'>Las respuestas fueron procesadas y enviadas al cierre del flujo.</p><p class=\\'completion-hint\\'>Modo de prueba: vuelve a n8n y pulsa <strong>Test workflow</strong> para iniciar una nueva ejecución.</p></div>";}var cfgFinishToStart=`,
+    `var startUrl=' + startUrlJson + ';var isTestMode=' + testFlag + ';var handoffSession=' + handoffFlag + ';function showCompletion(){var card=document.querySelector(".card");if(!card)return;card.innerHTML="<div class=\\'completion\\'><div class=\\'completion-icon\\' aria-hidden=\\'true\\'>&#10003;</div><h1 class=\\'completion-title\\'>Proceso finalizado</h1><p class=\\'completion-copy\\'>Las respuestas fueron procesadas y enviadas al cierre del flujo.</p><p class=\\'completion-hint\\'>Modo de prueba: vuelve a n8n y pulsa <strong>Test workflow</strong> para iniciar una nueva ejecución.</p></div>";}var cfgFinishToStart=`,
   );
   updated = updated.replace(
     /fetch\(form\.action\+joiner\+qs,\{method:"GET",credentials:"same-origin"\}\)\.catch\(function\(\)\{\}\)\.finally\(function\(\)\{window\.location\.href=getStartUrl\(\);\}\);/,
-    `fetch(form.action+joiner+qs,{method:"GET",credentials:"same-origin"}).then(function(response){if(!response.ok)throw new Error("HTTP "+response.status);if(isTestMode||!startUrl){showCompletion();return;}window.location.href=startUrl;}).catch(function(){err.textContent="No fue posible finalizar el proceso. Verifica la ejecución en n8n e inténtalo nuevamente.";err.classList.add("is-visible");err.style.display="flex";submitBtn.disabled=false;submitBtn.setAttribute("aria-disabled","false");if(ft){ft.textContent="Reintentar";}});`,
+    `fetch(form.action+joiner+qs,{method:"GET",credentials:"same-origin"}).then(function(response){if(!response.ok)throw new Error("HTTP "+response.status);if((isTestMode&&!handoffSession)||!startUrl){showCompletion();return;}var targetUrl=startUrl;if(handoffSession){try{var target=new URL(startUrl);var session=data.get("__workflow_session")||data.get("workflow_session");if(session)target.searchParams.set("workflow_session",session);targetUrl=target.toString();}catch(e){}}window.location.href=targetUrl;}).catch(function(){err.textContent="No fue posible finalizar el proceso. Verifica la ejecución en n8n e inténtalo nuevamente.";err.classList.add("is-visible");err.style.display="flex";submitBtn.disabled=false;submitBtn.setAttribute("aria-disabled","false");if(ft){ft.textContent="Reintentar";}});`,
   );
   node.parameters.jsCode = updated;
 }
@@ -398,10 +403,12 @@ patchForm('Form Tipo SIM', {
     { value: 'MultiSIM', label: 'MultiSIM' },
   ],
   allowBack: true,
-  finishToStart: true,
+  finishToStart: false,
   finishToStartWhen: {},
   outcome: 'continuar_parte_2',
   nextStep: 'parte_2_tipo_sim',
+  startPath: 'etb-form-parte-2',
+  handoffSession: true,
 });
 
 setIfCondition('IF linea_activa', 'linea_activa', 'Si');
@@ -441,12 +448,39 @@ const answers = {
   doc_enviada: value('doc_enviada'),
   tipo_sim: value('tipo_sim'),
 };
+const workflowSession = value('__workflow_session') || String($execution.id || '');
+const requestHeaders = ($json && $json.headers) ? $json.headers : {};
+const absoluteBase = (candidate) => {
+  const match = String(candidate || '').match(/^(https?:\/\/[^/]+)(\/[^?#]*)?/i);
+  if (!match) return '';
+  const origin = match[1];
+  const pathname = match[2] || '';
+  const markers = ['/webhook-waiting/', '/webhook-test/', '/webhook/'];
+  let basePath = '';
+  for (const marker of markers) {
+    const markerIndex = pathname.indexOf(marker);
+    if (markerIndex >= 0) { basePath = pathname.slice(0, markerIndex); break; }
+  }
+  return origin + basePath;
+};
+let publicBase = absoluteBase(($json && $json.webhookUrl) || '');
+if (!publicBase) {
+  const proto = String(requestHeaders['x-forwarded-proto'] || 'https').split(',')[0].trim();
+  const host = String(requestHeaders['x-forwarded-host'] || requestHeaders.host || '').split(',')[0].trim();
+  const prefix = String(requestHeaders['x-forwarded-prefix'] || '').replace(/\/$/, '');
+  if (host) publicBase = proto + '://' + host + prefix;
+}
+if (!publicBase) publicBase = absoluteBase($execution.resumeUrl || '');
+const handoffUrl = publicBase
+  ? publicBase.replace(/\/$/, '') + '/webhook/etb-form-parte-2?workflow_session=' + encodeURIComponent(workflowSession)
+  : '';
 return [{ json: {
-  workflow_session: value('__workflow_session') || String($execution.id || ''),
+  workflow_session: workflowSession,
   execution_id: String($execution.id || ''),
-  workflow_version: 'v11.7-auditada-crm-responsive-sql-20260710',
+  workflow_version: 'v11.8-conexion-etapa2-20260714',
   resultado_etapa_1: outcome,
   next_step: nextStep,
+  handoff_url: handoffUrl,
   ...answers,
   respuestas_json: JSON.stringify(answers),
 } }];`;
@@ -471,6 +505,45 @@ const mysqlNode = {
   notes: 'CONFIGURACIÓN VALIDADA: Host: 72.60.248.165 · Puerto: 3306 · Base: CRM · Usuario: crm_user. La autenticación y los privilegios sobre CRM.* fueron comprobados el 2026-07-10. No uses user_crm ni crm_n8n.',
 };
 workflow.nodes.push(mysqlNode);
+
+const handoffIfNode = JSON.parse(JSON.stringify(getNode('IF bloqueado')));
+handoffIfNode.id = 'if-continuar-etapa2-v11';
+handoffIfNode.name = 'IF Continuar Etapa 2';
+handoffIfNode.position = [6290, 0];
+handoffIfNode.parameters.conditions.conditions = [{
+  id: 'cond-continuar-etapa2-v11',
+  leftValue: "={{ $('Preparar Registro SQL').first().json.resultado_etapa_1 }}",
+  rightValue: 'continuar_parte_2',
+  operator: { type: 'string', operation: 'equals', name: 'filter.operator.equals' },
+}];
+handoffIfNode.parameters.conditions.combinator = 'or';
+workflow.nodes.push(handoffIfNode);
+
+workflow.nodes.push({
+  parameters: {
+    respondWith: 'text',
+    responseBody: 'OK',
+    options: { responseCode: 200 },
+  },
+  id: 'responder-cierre-etapa1-v11',
+  name: 'Responder Cierre Etapa 1',
+  type: 'n8n-nodes-base.respondToWebhook',
+  typeVersion: 1.4,
+  position: [6510, 220],
+});
+
+workflow.nodes.push({
+  parameters: {
+    respondWith: 'redirect',
+    redirectURL: "={{ $('Preparar Registro SQL').first().json.handoff_url }}",
+    options: {},
+  },
+  id: 'responder-redireccion-etapa2-v11',
+  name: 'Redirigir a Etapa 2',
+  type: 'n8n-nodes-base.respondToWebhook',
+  typeVersion: 1.4,
+  position: [6510, -220],
+});
 
 workflow.nodes.push({
   parameters: {
@@ -565,6 +638,9 @@ const layout = {
   // Persistencia única
   'Preparar Registro SQL': [5850, 0],
   'Guardar Respuestas MySQL': [6070, 0],
+  'IF Continuar Etapa 2': [6290, 0],
+  'Redirigir a Etapa 2': [6510, -220],
+  'Responder Cierre Etapa 1': [6510, 220],
 };
 
 for (const [name, [x, y]] of Object.entries(layout)) setPosition(name, x, y);
@@ -648,7 +724,7 @@ addSectionNote(
   'nota-v11-sql',
   '11 - Persistencia MySQL',
   '## 11 · Persistencia MySQL\nTodas las salidas convergen aquí.\n\n`workflow_session` evita duplicados.',
-  5740, -140, 560, 360, 2,
+  5740, -360, 1000, 720, 2,
 );
 
 const connections = {};
@@ -714,10 +790,12 @@ chain('Form Tipo SIM', 'Enviar Tipo SIM', 'Espera Tipo SIM', 'IF Volver Tipo SIM
 connect('IF Volver Tipo SIM', 0, 'Form Verificar Bloqueo');
 connect('IF Volver Tipo SIM', 1, 'Preparar Registro SQL');
 
-connect('Preparar Registro SQL', 0, 'Guardar Respuestas MySQL');
+chain('Preparar Registro SQL', 'Guardar Respuestas MySQL', 'IF Continuar Etapa 2');
+connect('IF Continuar Etapa 2', 0, 'Redirigir a Etapa 2');
+connect('IF Continuar Etapa 2', 1, 'Responder Cierre Etapa 1');
 workflow.connections = connections;
 
-workflow.name = 'Ningun Servicio Funciona - v11.7 Auditada CRM Responsive SQL';
+workflow.name = 'Ningun Servicio Funciona - 1';
 workflow.active = false;
 workflow.versionId = 'v11.7-auditada-crm-responsive-sql-20260710';
 workflow.id = 'NingunServicioFuncionaV117AuditadaCRMResponsiveSQL';
@@ -726,6 +804,10 @@ workflow.meta = Object.assign({}, workflow.meta, {
   generatedFrom: 'v10-etiquetas-con-imagenes',
   generatedAt: '2026-07-10',
 });
+
+for (const node of workflow.nodes.filter((item) => item.type === 'n8n-nodes-base.wait')) {
+  node.webhookId = `etapa1-${slug(node.name)}`;
+}
 
 fs.writeFileSync(outputPath, `${JSON.stringify(workflow, null, 2)}\n`, 'utf8');
 console.log(`Generado: ${path.basename(outputPath)}`);

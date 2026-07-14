@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const file = path.join(root, 'Ningun Servicio Funciona - v11.7 Auditada CRM Responsive SQL.json');
+const file = path.join(root, 'Ningun Servicio Funciona - 1.json');
 const workflow = JSON.parse(fs.readFileSync(file, 'utf8'));
 const errors = [];
 
@@ -31,7 +31,11 @@ for (const [source, value] of Object.entries(workflow.connections)) {
   }
 }
 
-const queue = ['Apertura del Flujo'];
+const roots = ['Apertura del Flujo', 'Continuar a Etapa 2'];
+for (const rootName of roots) {
+  if (!names.has(rootName)) errors.push(`Entrada inexistente: ${rootName}`);
+}
+const queue = [...roots];
 const reached = new Set();
 while (queue.length) {
   const current = queue.shift();
@@ -41,15 +45,27 @@ while (queue.length) {
 }
 
 const functional = workflow.nodes.filter((node) => node.type !== 'n8n-nodes-base.stickyNote');
+const waitIds = new Set();
+for (const node of functional.filter((item) => item.type === 'n8n-nodes-base.wait')) {
+  if (!node.webhookId) errors.push(`Wait sin webhookId: ${node.name}`);
+  if (waitIds.has(node.webhookId)) errors.push(`webhookId de Wait duplicado: ${node.webhookId}`);
+  waitIds.add(node.webhookId);
+}
 for (const node of functional) {
   if (!reached.has(node.name)) errors.push(`Nodo funcional inalcanzable: ${node.name}`);
-  if (node.name !== 'Apertura del Flujo' && incoming.get(node.name).length === 0) {
+  if (!roots.includes(node.name) && incoming.get(node.name).length === 0) {
     errors.push(`Nodo sin entrada: ${node.name}`);
   }
 }
 
 const terminals = functional.filter((node) => adjacency.get(node.name).length === 0).map((node) => node.name);
-if (terminals.length !== 1 || terminals[0] !== 'Guardar Respuestas MySQL') {
+const expectedTerminals = [
+  'Enviar Tipo SIM',
+  'Redirigir a Etapa 2',
+  'Responder Cierre Etapa 1',
+  'Responder Handoff Invalido',
+].sort();
+if (JSON.stringify(terminals.sort()) !== JSON.stringify(expectedTerminals)) {
   errors.push(`Terminales inesperados: ${terminals.join(', ')}`);
 }
 
@@ -63,12 +79,27 @@ else {
   if (!mysql.parameters.options.queryReplacement.startsWith('={{ [')) errors.push('Los parámetros SQL no usan una matriz de expresiones');
 }
 
+if (names.has('Espera Tipo SIM') || names.has('IF Volver Tipo SIM')) {
+  errors.push('El cierre Tipo SIM todavia depende de un Wait final');
+}
+const handoff = names.get('Continuar a Etapa 2');
+if (handoff?.type !== 'n8n-nodes-base.webhook' ||
+    handoff?.parameters?.httpMethod !== 'GET' ||
+    handoff?.parameters?.path !== 'etb-form-handoff' ||
+    handoff?.parameters?.responseMode !== 'responseNode') {
+  errors.push('Webhook puente de la etapa 2 ausente o mal configurado');
+}
+if (names.get('Preparar Registro SQL')?.parameters?.jsCode?.includes('new URL(')) {
+  errors.push('Preparar Registro SQL conserva una dependencia incompatible de URL');
+}
+
 for (const node of functional.filter((item) => item.type === 'n8n-nodes-base.code' && item.name.startsWith('Form '))) {
   const match = node.parameters.jsCode.match(/^const cfg = (\{.*\});$/m);
   if (!match) errors.push(`Formulario sin cfg: ${node.name}`);
   else {
     const cfg = JSON.parse(match[1]);
-    if (cfg.rendererVersion !== 'v11.7') errors.push(`Renderer desactualizado: ${node.name}`);
+    const expectedRenderer = node.name === 'Form Tipo SIM' ? 'v11.8-handoff-etapa2' : 'v11.7';
+    if (cfg.rendererVersion !== expectedRenderer) errors.push(`Renderer desactualizado: ${node.name}`);
     if (cfg.allowBack && !node.parameters.jsCode.includes('class="back-icon"')) {
       errors.push(`Botón Volver sin estilo v11.3: ${node.name}`);
     }
@@ -122,4 +153,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`OK: ${functional.length} nodos funcionales, ${workflow.nodes.length - functional.length} notas, un único cierre MySQL.`);
+console.log(`OK: ${functional.length} nodos funcionales, ${workflow.nodes.length - functional.length} notas, persistencia y respuesta final verificadas.`);

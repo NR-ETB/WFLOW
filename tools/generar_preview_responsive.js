@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const workflowPath = path.join(root, 'Ningun Servicio Funciona - v11.7 Auditada CRM Responsive SQL.json');
+const workflowPath = path.join(root, 'Ningun Servicio Funciona - 1.json');
 const previewDir = path.join(root, 'preview');
 const previewPath = path.join(previewDir, 'v11.7-auditada-responsive.html');
 const workflow = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
