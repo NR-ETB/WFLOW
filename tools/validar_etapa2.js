@@ -103,7 +103,7 @@ for (const form of forms) {
       for (const marker of [
         '<!DOCTYPE html>', 'viewport-fit=cover', 'role="radiogroup"', 'role="alert"',
         '@media(max-width:900px)', '@media(max-width:480px)', '@media(max-width:360px)',
-        '@media(min-width:901px) and (max-height:850px)', '100svh', '100dvh', 'safe-area-inset-top',
+        '@media(min-width:901px) and (max-width:1600px)', '100svh', '100dvh', 'safe-area-inset-top',
         'prefers-reduced-motion', 'etb-form-parte-2',
       ]) {
         if (!html.includes(marker)) fail(`${form.name} no contiene ${marker}`);
@@ -256,17 +256,36 @@ for (const form of forms) {
 
 const lookup = nodes.get('Consultar Contexto Etapa 1 MySQL');
 if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $1')) fail('La consulta no valida workflow_session');
+if (!lookup?.parameters?.query?.includes('FROM CRM.n8n_nsf_respuestas')) fail('La consulta no fija CRM.n8n_nsf_respuestas');
+if (!lookup?.parameters?.query?.includes('DATABASE() AS esquema_credencial')) fail('La consulta no informa el esquema de la credencial');
+if (!lookup?.parameters?.query?.includes('COUNT(*) AS coincidencias')) fail('La consulta no informa coincidencias');
 if (!lookup?.parameters?.query?.includes("MAX(resultado_etapa_1) = 'continuar_parte_2'")) fail('La consulta no audita resultado_etapa_1');
 if (!lookup?.parameters?.query?.includes("MAX(next_step) = 'parte_2_tipo_sim'")) fail('La consulta no audita next_step');
 if (!lookup?.parameters?.query?.includes("MAX(tipo_sim) IS NOT NULL")) fail('La consulta no exige tipo_sim');
 if (!lookup?.parameters?.query?.includes('AS contrato_canonico')) fail('La consulta no expone contrato_canonico');
 if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base ] }}') fail('La consulta de contexto no está parametrizada');
 
+const invalidContext = nodes.get('HTML Contexto Invalido');
+try {
+  const invalidHtml = new Function('$json', invalidContext.parameters.jsCode)({
+    workflow_session_solicitada: 'sesion-diagnostico',
+    esquema_credencial: 'CRM_QA',
+    coincidencias: 0,
+    tipo_sim: null,
+  })?.[0]?.json?.html_response || '';
+  for (const marker of ['sesion-diagnostico', 'CRM_QA', 'CRM.n8n_nsf_respuestas', 'Filas encontradas:']) {
+    if (!invalidHtml.includes(marker)) fail(`Diagnóstico de acceso incompleto: ${marker}`);
+  }
+} catch (error) {
+  fail(`Diagnóstico de acceso inválido: ${error.message}`);
+}
+
 const save = nodes.get('Guardar Etapa 2 MySQL');
 const placeholders = save?.parameters?.query?.match(/\$\d+/g) || [];
 const maxPlaceholder = Math.max(...placeholders.map((value) => Number(value.slice(1))));
 const replacements = save?.parameters?.options?.queryReplacement?.match(/\$json\.[A-Za-z0-9_]+/g) || [];
 if (maxPlaceholder !== 19 || replacements.length !== 19) fail(`Contrato MySQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
+if (!save?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_etapa2')) fail('El guardado no fija CRM.n8n_nsf_etapa2');
 if (!save.parameters.query.includes('ON DUPLICATE KEY UPDATE')) fail('El guardado no es idempotente');
 
 if (nodes.has('Form Confirmar Servicio Normalizado') || nodes.has('Espera Confirmar Servicio Normalizado')) {

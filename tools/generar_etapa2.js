@@ -143,6 +143,7 @@ const formTemplate = sourceNode('Form Confirmar Pago');
 const respondTemplate = sourceNode('Enviar Confirmar Pago');
 const waitTemplate = sourceNode('Espera Confirmar Pago');
 const ifTemplate = sourceNode('IF linea_activa');
+const compactContextCss = '@media(min-width:901px) and (max-width:1600px), (min-width:901px) and (max-height:900px){.card{width:min(100%,620px);padding:28px 30px}.title{font-size:32px}.copy,.code{font-size:14px}}';
 
 function makeIf(name, expression, expected, position) {
   const node = clone(ifTemplate);
@@ -266,7 +267,7 @@ lookup.name = 'Consultar Contexto Etapa 1 MySQL';
 lookup.position = [-3040, 0];
 lookup.parameters = {
   operation: 'executeQuery',
-  query: "SELECT $1 AS workflow_session_solicitada, $2 AS transition_mode, $3 AS handoff_query_json, $4 AS public_base, IF(COUNT(*) >= 1 AND MAX(tipo_sim) IS NOT NULL AND TRIM(MAX(tipo_sim)) <> '', 'Si', 'No') AS contexto_valido, IF(MAX(resultado_etapa_1) = 'continuar_parte_2' AND MAX(next_step) = 'parte_2_tipo_sim', 'Si', 'No') AS contrato_canonico, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_1) AS resultado_etapa_1, MAX(next_step) AS next_step FROM n8n_nsf_respuestas WHERE workflow_session = $1",
+  query: "SELECT $1 AS workflow_session_solicitada, $2 AS transition_mode, $3 AS handoff_query_json, $4 AS public_base, DATABASE() AS esquema_credencial, COUNT(*) AS coincidencias, IF(COUNT(*) >= 1 AND MAX(tipo_sim) IS NOT NULL AND TRIM(MAX(tipo_sim)) <> '', 'Si', 'No') AS contexto_valido, IF(MAX(resultado_etapa_1) = 'continuar_parte_2' AND MAX(next_step) = 'parte_2_tipo_sim', 'Si', 'No') AS contrato_canonico, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_1) AS resultado_etapa_1, MAX(next_step) AS next_step FROM CRM.n8n_nsf_respuestas WHERE workflow_session = $1",
   options: {
     queryBatching: 'single',
     queryReplacement: '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base ] }}',
@@ -326,6 +327,24 @@ return [{ json: { html_response: html } }];`,
   typeVersion: 2,
   position: [-2480, 500],
 });
+
+const invalidContextNode = workflow.nodes.find((node) => node.name === 'HTML Contexto Invalido');
+if (invalidContextNode) {
+  invalidContextNode.parameters.jsCode = `const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const requested = String($json.workflow_session_solicitada || '');
+const schema = String($json.esquema_credencial || '(sin esquema predeterminado)');
+const matches = Number($json.coincidencias || 0);
+const tipoSim = String($json.tipo_sim || '');
+const reason = !requested
+  ? 'El enlace no incluyó workflow_session.'
+  : matches === 0
+    ? 'La credencial MySQL no encontró esta sesión en CRM.n8n_nsf_respuestas.'
+    : !tipoSim
+      ? 'La sesión existe, pero tipo_sim está vacío.'
+      : 'La sesión existe, pero no pudo habilitarse la continuidad.';
+const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071830"><title>ETB - Diagnóstico de acceso</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(100%,720px);background:#10284a;border:1px solid rgba(29,161,242,.25);border-radius:20px;padding:clamp(24px,5vw,40px);box-shadow:0 28px 70px rgba(0,0,0,.55)}.tag{color:#ff8fa3;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.title{font-size:clamp(26px,6vw,38px);margin:14px 0}.copy{color:rgba(240,246,255,.76);font-size:15px;line-height:1.55}.details{margin-top:20px;display:grid;gap:8px}.row{padding:10px 12px;border-radius:10px;background:#081a34;border:1px solid rgba(29,161,242,.14);font-size:13px;overflow-wrap:anywhere}.row b{color:#38c7ff;font-weight:600}.hint{margin-top:18px;color:rgba(240,246,255,.58);font-size:12px;line-height:1.5}' + ${JSON.stringify(compactContextCss)} + '</style></head><body><main class="card"><div class="tag">Diagnóstico de acceso</div><h1 class="title">No fue posible recuperar la gestión</h1><p class="copy">' + esc(reason) + '</p><div class="details"><div class="row"><b>Sesión:</b> ' + esc(requested || '(vacía)') + '</div><div class="row"><b>Tabla:</b> CRM.n8n_nsf_respuestas</div><div class="row"><b>Esquema de la credencial:</b> ' + esc(schema) + '</div><div class="row"><b>Filas encontradas:</b> ' + esc(matches) + '</div><div class="row"><b>Tipo de SIM:</b> ' + esc(tipoSim || '(vacío)') + '</div></div><p class="hint">Usa la misma credencial MySQL CRM en Guardar Respuestas MySQL y Consultar Contexto Etapa 1 MySQL.</p></main></body></html>';
+return [{ json: { html_response: html } }];`;
+}
 
 const invalidRespond = clone(respondTemplate);
 invalidRespond.id = 'etapa2-responder-contexto-invalido';
@@ -596,7 +615,7 @@ save.name = 'Guardar Etapa 2 MySQL';
 save.position = [6780, 200];
 save.parameters = {
   operation: 'executeQuery',
-  query: 'INSERT INTO n8n_nsf_etapa2 (workflow_session, execution_id, workflow_version, resultado_etapa_2, next_step, tipo_sim, ruta_multisim, qr_escaneo_ok, qr_gestion, reposicion_ok, linea_portada, portacion_completada, nip_estado, espera_nip_confirmada, gestor_nip_ok, suma_ok, gestor_suma_ok, servicio_normalizado, respuestas_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) ON DUPLICATE KEY UPDATE execution_id=VALUES(execution_id), workflow_version=VALUES(workflow_version), resultado_etapa_2=VALUES(resultado_etapa_2), next_step=VALUES(next_step), tipo_sim=VALUES(tipo_sim), ruta_multisim=VALUES(ruta_multisim), qr_escaneo_ok=VALUES(qr_escaneo_ok), qr_gestion=VALUES(qr_gestion), reposicion_ok=VALUES(reposicion_ok), linea_portada=VALUES(linea_portada), portacion_completada=VALUES(portacion_completada), nip_estado=VALUES(nip_estado), espera_nip_confirmada=VALUES(espera_nip_confirmada), gestor_nip_ok=VALUES(gestor_nip_ok), suma_ok=VALUES(suma_ok), gestor_suma_ok=VALUES(gestor_suma_ok), servicio_normalizado=VALUES(servicio_normalizado), respuestas_json=VALUES(respuestas_json), updated_at=CURRENT_TIMESTAMP(3)',
+  query: 'INSERT INTO CRM.n8n_nsf_etapa2 (workflow_session, execution_id, workflow_version, resultado_etapa_2, next_step, tipo_sim, ruta_multisim, qr_escaneo_ok, qr_gestion, reposicion_ok, linea_portada, portacion_completada, nip_estado, espera_nip_confirmada, gestor_nip_ok, suma_ok, gestor_suma_ok, servicio_normalizado, respuestas_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) ON DUPLICATE KEY UPDATE execution_id=VALUES(execution_id), workflow_version=VALUES(workflow_version), resultado_etapa_2=VALUES(resultado_etapa_2), next_step=VALUES(next_step), tipo_sim=VALUES(tipo_sim), ruta_multisim=VALUES(ruta_multisim), qr_escaneo_ok=VALUES(qr_escaneo_ok), qr_gestion=VALUES(qr_gestion), reposicion_ok=VALUES(reposicion_ok), linea_portada=VALUES(linea_portada), portacion_completada=VALUES(portacion_completada), nip_estado=VALUES(nip_estado), espera_nip_confirmada=VALUES(espera_nip_confirmada), gestor_nip_ok=VALUES(gestor_nip_ok), suma_ok=VALUES(suma_ok), gestor_suma_ok=VALUES(gestor_suma_ok), servicio_normalizado=VALUES(servicio_normalizado), respuestas_json=VALUES(respuestas_json), updated_at=CURRENT_TIMESTAMP(3)',
   options: {
     queryBatching: 'single',
     queryReplacement: '={{ [ $json.workflow_session, $json.execution_id, $json.workflow_version, $json.resultado_etapa_2, $json.next_step, $json.tipo_sim, $json.ruta_multisim, $json.qr_escaneo_ok, $json.qr_gestion, $json.reposicion_ok, $json.linea_portada, $json.portacion_completada, $json.nip_estado, $json.espera_nip_confirmada, $json.gestor_nip_ok, $json.suma_ok, $json.gestor_suma_ok, $json.servicio_normalizado, $json.respuestas_json ] }}',

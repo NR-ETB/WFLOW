@@ -97,7 +97,7 @@ La prueba más estable se realiza con los tres workflows activos y sus URL de pr
 
 1. Ejecuta los scripts `10_etapa2_workbench_setup.sql` y `20_etapa3_workbench_setup.sql`.
 2. Importa `Ningun Servicio Funciona - 1.json`, `Ningun Servicio Funciona - 2.json` y `Ningun Servicio Funciona - 3.json`.
-3. Asigna la credencial `CRM` a los cinco nodos MySQL involucrados.
+3. Asigna exactamente la misma credencial `CRM` a los cinco nodos MySQL involucrados: `Guardar Respuestas MySQL`, `Consultar Contexto Etapa 1 MySQL`, `Guardar Etapa 2 MySQL`, `Consultar Contexto Etapa 2 MySQL` y `Guardar Etapa 3 MySQL`.
 4. Guarda y activa/publica los tres workflows. La etapa 1 registra `/webhook/etb-form` y `/webhook/etb-form-handoff`; la etapa 2 registra `/webhook/etb-form-parte-2` y `/webhook/etb-form-parte-2-handoff`.
 5. Abre únicamente `/webhook/etb-form` y completa la etapa 1 hasta seleccionar el tipo de SIM.
 6. Al guardar, el navegador debe abrir `/webhook/etb-form-parte-2?workflow_session=...` automáticamente.
@@ -147,6 +147,18 @@ tipo_sim IS NOT NULL
 ```
 
 La misma `workflow_session` identifica la gestión en ambas tablas. Si la sesión no existe o no tiene tipo de SIM, el webhook responde con una pantalla de contexto inválido y estado HTTP 400.
+
+Las consultas y escrituras usan nombres calificados (`CRM.n8n_nsf_respuestas`, `CRM.n8n_nsf_etapa2` y `CRM.n8n_nsf_etapa3`). De esta forma, la continuidad no depende del esquema predeterminado configurado en cada credencial importada.
+
+Si la etapa 2 muestra el diagnóstico de acceso, copia la sesión que aparece en pantalla y compruébala en Workbench:
+
+```sql
+SELECT workflow_session, resultado_etapa_1, next_step, tipo_sim
+FROM CRM.n8n_nsf_respuestas
+WHERE workflow_session = 'PEGA_AQUI_LA_SESION';
+```
+
+La pantalla también informa el esquema predeterminado de la credencial, el número de filas encontradas y el tipo de SIM recuperado. Una fila con `tipo_sim` informado es suficiente para que la etapa 2 continúe; `resultado_etapa_1` y `next_step` se conservan como auditoría de compatibilidad.
 
 ### Resultados de la etapa 1
 

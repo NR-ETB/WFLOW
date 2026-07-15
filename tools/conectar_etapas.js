@@ -5,6 +5,13 @@ const root = path.resolve(__dirname, '..');
 const workflowPath = path.join(root, 'Ningun Servicio Funciona - 1.json');
 const workflow = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
 workflow.name = 'Ningun Servicio Funciona - 1';
+const stage1Save = workflow.nodes.find((node) => node.name === 'Guardar Respuestas MySQL');
+if (stage1Save?.parameters?.query) {
+  stage1Save.parameters.query = stage1Save.parameters.query.replace(
+    'INSERT INTO n8n_nsf_respuestas',
+    'INSERT INTO CRM.n8n_nsf_respuestas',
+  );
+}
 const slug = (value) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 for (const node of workflow.nodes.filter((item) => item.type === 'n8n-nodes-base.wait')) {

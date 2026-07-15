@@ -75,6 +75,7 @@ else {
   const placeholders = mysql.parameters.query.match(/\$\d+/g) || [];
   const maxPlaceholder = Math.max(...placeholders.map((value) => Number(value.slice(1))));
   if (maxPlaceholder !== 18) errors.push(`Cantidad de parámetros SQL inesperada: ${maxPlaceholder}`);
+  if (!mysql.parameters.query.includes('INSERT INTO CRM.n8n_nsf_respuestas')) errors.push('El guardado no fija el esquema CRM');
   if (!mysql.parameters.query.includes('ON DUPLICATE KEY UPDATE')) errors.push('El INSERT no es idempotente');
   if (!mysql.parameters.options.queryReplacement.startsWith('={{ [')) errors.push('Los parámetros SQL no usan una matriz de expresiones');
 }
@@ -110,7 +111,7 @@ for (const node of functional.filter((item) => item.type === 'n8n-nodes-base.cod
   if (!node.parameters.jsCode.includes('Modo de prueba: vuelve a n8n')) errors.push(`Formulario sin cierre de prueba: ${node.name}`);
   if (node.parameters.jsCode.includes('function getStartUrl()')) errors.push(`Redirección antigua presente: ${node.name}`);
   if (!node.parameters.jsCode.includes('height:56px')) errors.push(`Altura uniforme ausente: ${node.name}`);
-  for (const responsiveMarker of ['100svh', '@media(max-width:900px)', '@media(max-width:480px)', '@media(min-width:901px) and (max-height:850px)', 'orientation:landscape', 'prefers-reduced-motion', 'safe-area-inset-top', 'max-width:760px', 'grid-template-columns:1fr']) {
+  for (const responsiveMarker of ['100svh', '@media(max-width:900px)', '@media(max-width:480px)', '@media(min-width:901px) and (max-width:1600px)', 'orientation:landscape', 'prefers-reduced-motion', 'safe-area-inset-top', 'max-width:620px', 'grid-template-columns:1fr']) {
     if (!node.parameters.jsCode.includes(responsiveMarker)) errors.push(`Responsive incompleto (${responsiveMarker}): ${node.name}`);
   }
   try {
@@ -122,7 +123,7 @@ for (const node of functional.filter((item) => item.type === 'n8n-nodes-base.cod
     const html = result?.[0]?.json?.html_response || '';
     if (!html.includes('viewport-fit=cover')) errors.push(`Viewport incompleto: ${node.name}`);
     if (!html.includes('@media(max-width:360px)')) errors.push(`HTML sin soporte 320/360 px: ${node.name}`);
-    if (!html.includes('@media(min-width:901px) and (max-height:850px)')) errors.push(`HTML sin modo portátil compacto: ${node.name}`);
+    if (!html.includes('@media(min-width:901px) and (max-width:1600px)')) errors.push(`HTML sin modo portátil compacto: ${node.name}`);
     if (html.includes('max-width:1040px') || html.includes('max-width:1100px')) errors.push(`HTML conserva ampliación excesiva de escritorio: ${node.name}`);
   } catch (error) {
     errors.push(`JavaScript inválido en ${node.name}: ${error.message}`);

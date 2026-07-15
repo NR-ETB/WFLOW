@@ -53,6 +53,7 @@ const waitTemplate = sourceNode('Espera Validar SUMA');
 const ifTemplate = sourceNode('IF SUMA Activo y Recursos');
 const mysqlTemplate = sourceNode('Guardar Etapa 2 MySQL');
 const baseFormCode = formTemplate.parameters.jsCode;
+const compactContextCss = '@media(min-width:901px) and (max-width:1600px), (min-width:901px) and (max-height:900px){.card{width:min(100%,620px);padding:28px 30px}.title{font-size:32px}.copy,.code{font-size:14px}}';
 
 function buildFormCode(config) {
   const match = baseFormCode.match(/^const cfg = (\{.*\});$/m);
@@ -176,7 +177,7 @@ lookup.name = 'Consultar Contexto Etapa 2 MySQL';
 lookup.position = [-3040, 0];
 lookup.parameters = {
   operation: 'executeQuery',
-  query: "SELECT $1 AS workflow_session_solicitada, IF(COUNT(*) = 1, 'Si', 'No') AS contexto_valido, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_2) AS resultado_etapa_2, MAX(next_step) AS next_step, MAX(suma_ok) AS suma_ok FROM n8n_nsf_etapa2 WHERE workflow_session = $1 AND resultado_etapa_2 = 'continuar_parte_3' AND next_step = 'parte_3_configuracion_equipo' AND suma_ok = 'Si'",
+  query: "SELECT $1 AS workflow_session_solicitada, DATABASE() AS esquema_credencial, COUNT(*) AS coincidencias, IF(COUNT(*) = 1, 'Si', 'No') AS contexto_valido, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_2) AS resultado_etapa_2, MAX(next_step) AS next_step, MAX(suma_ok) AS suma_ok FROM CRM.n8n_nsf_etapa2 WHERE workflow_session = $1 AND resultado_etapa_2 = 'continuar_parte_3' AND next_step = 'parte_3_configuracion_equipo' AND suma_ok = 'Si'",
   options: {
     queryBatching: 'single',
     queryReplacement: '={{ [ $json.workflow_session ] }}',
@@ -215,6 +216,11 @@ return [{ json: { html_response: html } }];`,
   typeVersion: 2,
   position: [-2480, 500],
 });
+
+const invalidContextNode = workflow.nodes.find((node) => node.name === 'HTML Contexto Invalido Etapa 3');
+if (invalidContextNode && !invalidContextNode.parameters.jsCode.includes(compactContextCss)) {
+  invalidContextNode.parameters.jsCode = invalidContextNode.parameters.jsCode.replace('</style>', `${compactContextCss}</style>`);
+}
 
 const invalidRespond = clone(respondTemplate);
 invalidRespond.id = 'etapa3-responder-contexto-invalido';
@@ -436,7 +442,7 @@ save.name = 'Guardar Etapa 3 MySQL';
 save.position = [8280, 350];
 save.parameters = {
   operation: 'executeQuery',
-  query: 'INSERT INTO n8n_nsf_etapa3 (workflow_session, execution_id, workflow_version, resultado_etapa_3, next_step, tipo_falla_equipo, tipo_equipo_cliente, configuracion_plataforma, configuracion_funciono, dispositivo_alterno, prueba_cruzada_funciono, reinicio_sim_resultado, pqr_configuracion_ok, pqr_dispositivo_ok, pqr_reinicio_ok, escalamiento_segundo_nivel, respuestas_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) ON DUPLICATE KEY UPDATE execution_id=VALUES(execution_id), workflow_version=VALUES(workflow_version), resultado_etapa_3=VALUES(resultado_etapa_3), next_step=VALUES(next_step), tipo_falla_equipo=VALUES(tipo_falla_equipo), tipo_equipo_cliente=VALUES(tipo_equipo_cliente), configuracion_plataforma=VALUES(configuracion_plataforma), configuracion_funciono=VALUES(configuracion_funciono), dispositivo_alterno=VALUES(dispositivo_alterno), prueba_cruzada_funciono=VALUES(prueba_cruzada_funciono), reinicio_sim_resultado=VALUES(reinicio_sim_resultado), pqr_configuracion_ok=VALUES(pqr_configuracion_ok), pqr_dispositivo_ok=VALUES(pqr_dispositivo_ok), pqr_reinicio_ok=VALUES(pqr_reinicio_ok), escalamiento_segundo_nivel=VALUES(escalamiento_segundo_nivel), respuestas_json=VALUES(respuestas_json), updated_at=CURRENT_TIMESTAMP(3)',
+  query: 'INSERT INTO CRM.n8n_nsf_etapa3 (workflow_session, execution_id, workflow_version, resultado_etapa_3, next_step, tipo_falla_equipo, tipo_equipo_cliente, configuracion_plataforma, configuracion_funciono, dispositivo_alterno, prueba_cruzada_funciono, reinicio_sim_resultado, pqr_configuracion_ok, pqr_dispositivo_ok, pqr_reinicio_ok, escalamiento_segundo_nivel, respuestas_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) ON DUPLICATE KEY UPDATE execution_id=VALUES(execution_id), workflow_version=VALUES(workflow_version), resultado_etapa_3=VALUES(resultado_etapa_3), next_step=VALUES(next_step), tipo_falla_equipo=VALUES(tipo_falla_equipo), tipo_equipo_cliente=VALUES(tipo_equipo_cliente), configuracion_plataforma=VALUES(configuracion_plataforma), configuracion_funciono=VALUES(configuracion_funciono), dispositivo_alterno=VALUES(dispositivo_alterno), prueba_cruzada_funciono=VALUES(prueba_cruzada_funciono), reinicio_sim_resultado=VALUES(reinicio_sim_resultado), pqr_configuracion_ok=VALUES(pqr_configuracion_ok), pqr_reinicio_ok=VALUES(pqr_reinicio_ok), escalamiento_segundo_nivel=VALUES(escalamiento_segundo_nivel), respuestas_json=VALUES(respuestas_json), updated_at=CURRENT_TIMESTAMP(3)',
   options: {
     queryBatching: 'single',
     queryReplacement: '={{ [ $json.workflow_session, $json.execution_id, $json.workflow_version, $json.resultado_etapa_3, $json.next_step, $json.tipo_falla_equipo, $json.tipo_equipo_cliente, $json.configuracion_plataforma, $json.configuracion_funciono, $json.dispositivo_alterno, $json.prueba_cruzada_funciono, $json.reinicio_sim_resultado, $json.pqr_configuracion_ok, $json.pqr_dispositivo_ok, $json.pqr_reinicio_ok, $json.escalamiento_segundo_nivel, $json.respuestas_json ] }}',

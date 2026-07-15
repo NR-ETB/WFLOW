@@ -84,7 +84,7 @@ for (const form of forms) {
     const html = result?.[0]?.json?.html_response || '';
     for (const marker of [
       '<!DOCTYPE html>', 'viewport-fit=cover', 'role="radiogroup"', '@media(max-width:900px)',
-      '@media(max-width:480px)', '@media(min-width:901px) and (max-height:850px)', '100svh', 'safe-area-inset-top',
+      '@media(max-width:480px)', '@media(min-width:901px) and (max-width:1600px)', '100svh', 'safe-area-inset-top',
       'prefers-reduced-motion', 'etb-form-parte-3',
     ]) {
       if (!html.includes(marker)) fail(`${form.name} no contiene ${marker}`);
@@ -102,6 +102,7 @@ const forbiddenNames = ['Form Iniciar Etapa 3', 'Form Confirmar Servicio Normali
 for (const name of forbiddenNames) if (nodes.has(name)) fail(`Nodo redundante presente: ${name}`);
 
 const lookup = nodes.get('Consultar Contexto Etapa 2 MySQL');
+if (!lookup?.parameters?.query?.includes('FROM CRM.n8n_nsf_etapa2')) fail('La consulta no fija CRM.n8n_nsf_etapa2');
 for (const marker of [
   "resultado_etapa_2 = 'continuar_parte_3'",
   "next_step = 'parte_3_configuracion_equipo'",
@@ -194,6 +195,7 @@ const placeholders = save?.parameters?.query?.match(/\$\d+/g) || [];
 const maxPlaceholder = Math.max(...placeholders.map((value) => Number(value.slice(1))));
 const replacements = save?.parameters?.options?.queryReplacement?.match(/\$json\.[A-Za-z0-9_]+/g) || [];
 if (maxPlaceholder !== 17 || replacements.length !== 17) fail(`Contrato MySQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
+if (!save?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_etapa3')) fail('El guardado no fija CRM.n8n_nsf_etapa3');
 if (!save?.parameters?.query?.includes('ON DUPLICATE KEY UPDATE')) fail('Guardado no idempotente');
 
 const ddl = fs.readFileSync(path.join(root, 'database', '20_etapa3_workbench_setup.sql'), 'utf8');

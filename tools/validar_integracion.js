@@ -84,6 +84,7 @@ if (webhook1?.parameters?.path === 'etb-form' &&
 const lookup = nodes2.get('Consultar Contexto Etapa 1 MySQL');
 const query = lookup?.parameters?.query || '';
 for (const token of [
+  'FROM CRM.n8n_nsf_respuestas',
   'workflow_session = $1',
   "MAX(resultado_etapa_1) = 'continuar_parte_2'",
   "MAX(next_step) = 'parte_2_tipo_sim'",
@@ -93,6 +94,22 @@ for (const token of [
   if (!query.includes(token)) fail(`Contrato SQL incompleto: falta ${token}`);
 }
 if (!errors.some((error) => error.startsWith('Contrato SQL'))) ok('Etapa 2 acepta sesiones existentes y audita el contrato de la etapa 1');
+
+const save1 = nodes1.get('Guardar Respuestas MySQL');
+const save2 = nodes2.get('Guardar Etapa 2 MySQL');
+const save3 = nodes3.get('Guardar Etapa 3 MySQL');
+if (!save1?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_respuestas')) {
+  fail('La etapa 1 no guarda explícitamente en CRM.n8n_nsf_respuestas.');
+}
+if (!save2?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_etapa2')) {
+  fail('La etapa 2 no guarda explícitamente en CRM.n8n_nsf_etapa2.');
+}
+if (!save3?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_etapa3')) {
+  fail('La etapa 3 no guarda explícitamente en CRM.n8n_nsf_etapa3.');
+}
+if (!errors.some((error) => error.includes('explícitamente en CRM'))) {
+  ok('Los tres workflows usan tablas calificadas del esquema CRM');
+}
 
 function outgoing(workflow, nodeName) {
   return (workflow.connections[nodeName]?.main || []).flat().map((edge) => edge.node);
@@ -286,6 +303,7 @@ if (!errors.some((error) => error.includes('etapa 2 → etapa 3') || error.inclu
 
 const lookup3 = nodes3.get('Consultar Contexto Etapa 2 MySQL');
 for (const token of [
+  'FROM CRM.n8n_nsf_etapa2',
   "resultado_etapa_2 = 'continuar_parte_3'",
   "next_step = 'parte_3_configuracion_equipo'",
   "suma_ok = 'Si'",
