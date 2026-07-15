@@ -93,19 +93,18 @@ function buildFormCode(config) {
   const cleanHandoffPath = String(cfg.handoffPath || '').replace(/^\\/+/, '');
   let handoffUrl = '';
   if (cleanHandoffPath) {
-    try {
-      const parsed = new URL(String(resumeUrl || ''));
+    const resumeMatch = String(resumeUrl || '').match(/^(https?:\\/\\/[^/]+)(\\/[^?#]*)?/i);
+    if (resumeMatch) {
+      const origin = resumeMatch[1];
+      const pathname = resumeMatch[2] || '';
       const markers = ['/webhook-waiting/', '/webhook-test/', '/webhook/'];
       let basePath = '';
       for (const marker of markers) {
-        const markerIndex = parsed.pathname.indexOf(marker);
-        if (markerIndex >= 0) { basePath = parsed.pathname.slice(0, markerIndex); break; }
+        const markerIndex = pathname.indexOf(marker);
+        if (markerIndex >= 0) { basePath = pathname.slice(0, markerIndex); break; }
       }
-      parsed.pathname = basePath + '/webhook/' + cleanHandoffPath;
-      parsed.search = '';
-      parsed.hash = '';
-      handoffUrl = parsed.toString();
-    } catch (e) {}
+      handoffUrl = origin + basePath + '/webhook/' + cleanHandoffPath;
+    }
   }
   const handoffUrlJson = JSON.stringify(handoffUrl);
   const testFlag = executionMode === 'test' ? 'true' : 'false';

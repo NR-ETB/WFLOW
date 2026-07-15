@@ -241,7 +241,8 @@ if (sumaCfg.handoffPath !== 'etb-form-parte-2-handoff' || sumaCfg.handoffWhen?.s
   fail('El formulario SUMA no entrega su respuesta positiva al webhook puente.');
 }
 try {
-  const html = new Function('$execution', '$json', sumaForm.parameters.jsCode)(
+  const html = new Function('URL', '$execution', '$json', sumaForm.parameters.jsCode)(
+    undefined,
     { id: 'suma-ui', mode: 'production', resumeUrl: 'https://n8n.example.test/webhook-waiting/434' },
     { query: { workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica' } },
   )?.[0]?.json?.html_response || '';
@@ -250,6 +251,9 @@ try {
   }
   if (!html.includes('shouldUseHandoff(data)')) {
     fail('El frontend SUMA no cambia de destino al seleccionar Sí.');
+  }
+  if (!String(sumaForm.parameters.jsCode).includes('const resumeMatch = String(resumeUrl ||')) {
+    fail('El handoff SUMA no contiene la construcción compatible sin URL global.');
   }
   if (!html.includes('name="__workflow_session" value="sesion-etapa3-prueba"')) {
     fail('El frontend SUMA no conserva la sesión original.');
