@@ -27,7 +27,7 @@ const workflow = {
   connections: {},
   active: false,
   settings: { executionOrder: 'v1' },
-  versionId: 'etapa2-v3-continuidad-transparente-20260715',
+  versionId: 'etapa2-v4-sesion-compatible-20260715',
   meta: { templateCredsSetupCompleted: false },
   id: 'NingunServicioFuncionaEtapa2V2',
   tags: [],
@@ -266,7 +266,7 @@ lookup.name = 'Consultar Contexto Etapa 1 MySQL';
 lookup.position = [-3040, 0];
 lookup.parameters = {
   operation: 'executeQuery',
-  query: "SELECT $1 AS workflow_session_solicitada, $2 AS transition_mode, $3 AS handoff_query_json, $4 AS public_base, IF(COUNT(*) = 1, 'Si', 'No') AS contexto_valido, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_1) AS resultado_etapa_1, MAX(next_step) AS next_step FROM n8n_nsf_respuestas WHERE workflow_session = $1 AND resultado_etapa_1 = 'continuar_parte_2' AND next_step = 'parte_2_tipo_sim' AND tipo_sim IS NOT NULL",
+  query: "SELECT $1 AS workflow_session_solicitada, $2 AS transition_mode, $3 AS handoff_query_json, $4 AS public_base, IF(COUNT(*) >= 1 AND MAX(tipo_sim) IS NOT NULL AND TRIM(MAX(tipo_sim)) <> '', 'Si', 'No') AS contexto_valido, IF(MAX(resultado_etapa_1) = 'continuar_parte_2' AND MAX(next_step) = 'parte_2_tipo_sim', 'Si', 'No') AS contrato_canonico, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_1) AS resultado_etapa_1, MAX(next_step) AS next_step FROM n8n_nsf_respuestas WHERE workflow_session = $1",
   options: {
     queryBatching: 'single',
     queryReplacement: '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base ] }}',
@@ -275,7 +275,7 @@ lookup.parameters = {
   },
 };
 lookup.notesInFlow = true;
-lookup.notes = 'Selecciona la credencial MySQL CRM. Base validada: CRM. Este nodo solo consulta el contrato de la etapa 1.';
+lookup.notes = 'Selecciona la credencial MySQL CRM. La sesión puede venir de la versión actual o de una gestión anterior; debe existir y tener tipo_sim. contrato_canonico permite auditar si también conserva los marcadores actuales.';
 delete lookup.credentials;
 add(lookup);
 
@@ -575,7 +575,7 @@ const handoffUrl = outcome === 'continuar_parte_3' && publicBase
 return [{ json: {
   workflow_session: workflowSession,
   execution_id: String($execution.id || ''),
-  workflow_version: 'etapa2-v3-continuidad-transparente-20260715',
+  workflow_version: 'etapa2-v4-sesion-compatible-20260715',
   resultado_etapa_2: outcome,
   next_step: nextStep,
   handoff_url: handoffUrl,

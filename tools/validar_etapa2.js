@@ -254,8 +254,11 @@ for (const form of forms) {
 }
 
 const lookup = nodes.get('Consultar Contexto Etapa 1 MySQL');
-if (!lookup?.parameters?.query?.includes("resultado_etapa_1 = 'continuar_parte_2'")) fail('La consulta no valida resultado_etapa_1');
-if (!lookup?.parameters?.query?.includes("next_step = 'parte_2_tipo_sim'")) fail('La consulta no valida next_step');
+if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $1')) fail('La consulta no valida workflow_session');
+if (!lookup?.parameters?.query?.includes("MAX(resultado_etapa_1) = 'continuar_parte_2'")) fail('La consulta no audita resultado_etapa_1');
+if (!lookup?.parameters?.query?.includes("MAX(next_step) = 'parte_2_tipo_sim'")) fail('La consulta no audita next_step');
+if (!lookup?.parameters?.query?.includes("MAX(tipo_sim) IS NOT NULL")) fail('La consulta no exige tipo_sim');
+if (!lookup?.parameters?.query?.includes('AS contrato_canonico')) fail('La consulta no expone contrato_canonico');
 if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base ] }}') fail('La consulta de contexto no está parametrizada');
 
 const save = nodes.get('Guardar Etapa 2 MySQL');

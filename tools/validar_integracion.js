@@ -85,13 +85,14 @@ const lookup = nodes2.get('Consultar Contexto Etapa 1 MySQL');
 const query = lookup?.parameters?.query || '';
 for (const token of [
   'workflow_session = $1',
-  "resultado_etapa_1 = 'continuar_parte_2'",
-  "next_step = 'parte_2_tipo_sim'",
-  'tipo_sim IS NOT NULL',
+  "MAX(resultado_etapa_1) = 'continuar_parte_2'",
+  "MAX(next_step) = 'parte_2_tipo_sim'",
+  'MAX(tipo_sim) IS NOT NULL',
+  'AS contrato_canonico',
 ]) {
   if (!query.includes(token)) fail(`Contrato SQL incompleto: falta ${token}`);
 }
-if (!errors.some((error) => error.startsWith('Contrato SQL'))) ok('Etapa 2 valida el contrato persistido por la etapa 1');
+if (!errors.some((error) => error.startsWith('Contrato SQL'))) ok('Etapa 2 acepta sesiones existentes y audita el contrato de la etapa 1');
 
 function outgoing(workflow, nodeName) {
   return (workflow.connections[nodeName]?.main || []).flat().map((edge) => edge.node);

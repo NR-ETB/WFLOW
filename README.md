@@ -138,7 +138,7 @@ El formulario publica directamente en el webhook puente de producción. Por eso 
 
 ## Contrato entre etapas
 
-La etapa 2 solo permite continuar cuando encuentra una fila de la etapa 1 que cumple las tres condiciones siguientes:
+La etapa 2 permite continuar cuando `workflow_session` existe en la tabla de la etapa 1 y tiene un `tipo_sim` válido. Esto mantiene compatibilidad con gestiones creadas por versiones anteriores. Además, calcula `contrato_canonico` para auditar si la fila conserva los marcadores actuales:
 
 ```text
 resultado_etapa_1 = continuar_parte_2
@@ -146,7 +146,7 @@ next_step = parte_2_tipo_sim
 tipo_sim IS NOT NULL
 ```
 
-La misma `workflow_session` identifica la gestión en ambas tablas. Si la sesión no existe o no está lista, el webhook responde con una pantalla de contexto inválido y estado HTTP 400.
+La misma `workflow_session` identifica la gestión en ambas tablas. Si la sesión no existe o no tiene tipo de SIM, el webhook responde con una pantalla de contexto inválido y estado HTTP 400.
 
 ### Resultados de la etapa 1
 
