@@ -267,6 +267,10 @@ if (!lookup?.parameters?.query?.includes("MAX(next_step) = 'parte_2_tipo_sim'"))
 if (!lookup?.parameters?.query?.includes("MAX(tipo_sim) IS NOT NULL")) fail('La consulta no exige tipo_sim');
 if (!lookup?.parameters?.query?.includes('AS contrato_canonico')) fail('La consulta no expone contrato_canonico');
 if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base, $json.workflow_session ] }}') fail('La consulta de contexto no está parametrizada');
+const normalizeHandoff = nodes.get('Normalizar Handoff a Diagnostico de Equipo');
+const prepareHandoff = nodes.get('Preparar Handoff SQL y Continuidad');
+if (!normalizeHandoff?.parameters?.jsCode?.includes('encodeURIComponent(JSON.stringify(normalizedQuery))')) fail('El contexto del handoff no se codifica antes de MySQL');
+if (!prepareHandoff?.parameters?.jsCode?.includes('decodeURIComponent(encodedQuery)')) fail('El contexto del handoff no se decodifica después de MySQL');
 
 const invalidContext = nodes.get('HTML Contexto Invalido');
 try {

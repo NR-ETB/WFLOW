@@ -281,6 +281,13 @@ try {
     headers: { host: 'n8n.example.test', 'x-forwarded-proto': 'https' },
     query: { __workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica', suma_ok: 'Si' },
   })?.[0]?.json;
+  if (String(normalized?.handoff_query_json || '').includes(',')) {
+    fail('El payload del handoff conserva comas incompatibles con Query Parameters de MySQL.');
+  }
+  const decodedHandoff = JSON.parse(decodeURIComponent(normalized.handoff_query_json));
+  if (decodedHandoff.suma_ok !== 'Si' || decodedHandoff.__workflow_session !== 'sesion-etapa3-prueba') {
+    fail('El payload codificado del handoff no conserva sus respuestas.');
+  }
   const handoffContext = new Function('$json', prepareHandoff.parameters.jsCode)({
     ...normalized,
     contexto_valido: 'Si',

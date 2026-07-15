@@ -27,7 +27,7 @@ const workflow = {
   connections: {},
   active: false,
   settings: { executionOrder: 'v1' },
-  versionId: 'etapa2-v5-responsive-homogeneo-20260715',
+  versionId: 'etapa2-v6-handoff-codificado-20260715',
   meta: { templateCredsSetupCompleted: false },
   id: 'NingunServicioFuncionaEtapa2V2',
   tags: [],
@@ -222,7 +222,7 @@ const workflowSession = String(raw || '').trim();
 return [{ json: {
   workflow_session: workflowSession || '__missing__',
   transition_mode: 'ui',
-  handoff_query_json: '{}',
+  handoff_query_json: encodeURIComponent('{}'),
   public_base: '',
 } }];`,
   },
@@ -249,7 +249,7 @@ const normalizedQuery = { ...query, workflow_session: workflowSession, __workflo
 return [{ json: {
   workflow_session: workflowSession || '__missing__',
   transition_mode: 'handoff',
-  handoff_query_json: JSON.stringify(normalizedQuery),
+  handoff_query_json: encodeURIComponent(JSON.stringify(normalizedQuery)),
   public_base: publicBase,
 } }];`,
   },
@@ -299,7 +299,10 @@ return [{ json: { query: { workflow_session: session, tipo_sim: tipo } } }];`,
 add({
   parameters: {
     jsCode: `let query = {};
-try { query = JSON.parse(String($json.handoff_query_json || '{}')); } catch (error) {}
+const encodedQuery = String($json.handoff_query_json || '%7B%7D');
+try { query = JSON.parse(decodeURIComponent(encodedQuery)); } catch (error) {
+  try { query = JSON.parse(encodedQuery); } catch (fallbackError) {}
+}
 const workflowSession = String($json.workflow_session || $json.workflow_session_solicitada || query.workflow_session || query.__workflow_session || '').trim();
 query.workflow_session = workflowSession;
 query.__workflow_session = workflowSession;
@@ -594,7 +597,7 @@ const handoffUrl = outcome === 'continuar_parte_3' && publicBase
 return [{ json: {
   workflow_session: workflowSession,
   execution_id: String($execution.id || ''),
-  workflow_version: 'etapa2-v5-responsive-homogeneo-20260715',
+  workflow_version: 'etapa2-v6-handoff-codificado-20260715',
   resultado_etapa_2: outcome,
   next_step: nextStep,
   handoff_url: handoffUrl,
@@ -655,11 +658,20 @@ add(finalRespond);
 
 add({
   parameters: {
-    jsCode: `const item = ($json && $json.item) ? $json.item : {};
-const session = String(item.workflow_session || item.workflow_session_solicitada || 'no disponible');
-const phase = item.resultado_etapa_2 ? 'guardar la etapa 2' : 'consultar el contexto de la etapa 1';
+    jsCode: `const item = ($json && $json.item) ? $json.item : ($json || {});
+let prepared = {};
+let normalized = {};
+try { prepared = $('Preparar Registro Etapa 2 SQL').first().json || {}; } catch (error) {}
+try { normalized = $('Normalizar Handoff a Diagnostico de Equipo').first().json || {}; } catch (error) {}
+if (!normalized.workflow_session) {
+  try { normalized = $('Normalizar Entrada Etapa 2').first().json || {}; } catch (error) {}
+}
+const session = String(item.workflow_session || item.workflow_session_solicitada || prepared.workflow_session || normalized.workflow_session || 'no disponible');
+const saving = Boolean(item.resultado_etapa_2 || prepared.resultado_etapa_2);
+const phase = saving ? 'guardar la etapa 2' : 'consultar el contexto de la etapa 1';
+const table = saving ? 'CRM.n8n_nsf_etapa2' : 'CRM.n8n_nsf_respuestas';
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071830"><title>ETB - Error de persistencia</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(100%,620px);background:#10284a;border:1px solid rgba(255,92,122,.36);border-radius:20px;padding:32px}.tag{color:#ff8fa3;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.title{font-size:clamp(26px,6vw,36px);margin:14px 0}.copy{color:rgba(240,246,255,.75);font-size:15px;line-height:1.55}.details{margin-top:18px;padding:13px;border-radius:12px;background:#081a34;color:#38c7ff;overflow-wrap:anywhere}.hint{margin-top:16px;color:rgba(240,246,255,.58);font-size:13px;line-height:1.5}@media(max-width:480px){body{align-items:start;padding-top:28px}.card{padding:24px 18px}}</style></head><body><main class="card"><div class="tag">Error de persistencia</div><h1 class="title">No fue posible continuar</h1><p class="copy">MySQL presentó un error al ' + esc(phase) + '.</p><div class="details"><b>Sesión:</b> ' + esc(session) + '</div><p class="hint">Verifica la credencial del nodo y que exista la tabla CRM.n8n_nsf_etapa2. Consulta la ejecución en n8n para ver el detalle técnico.</p></main></body></html>';
+const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071830"><title>ETB - Error de persistencia</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(100%,620px);background:#10284a;border:1px solid rgba(255,92,122,.36);border-radius:20px;padding:32px}.tag{color:#ff8fa3;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.title{font-size:clamp(26px,6vw,36px);margin:14px 0}.copy{color:rgba(240,246,255,.75);font-size:15px;line-height:1.55}.details{margin-top:18px;padding:13px;border-radius:12px;background:#081a34;color:#38c7ff;overflow-wrap:anywhere}.hint{margin-top:16px;color:rgba(240,246,255,.58);font-size:13px;line-height:1.5}@media(max-width:480px){body{align-items:start;padding-top:28px}.card{padding:24px 18px}}</style></head><body><main class="card"><div class="tag">Error de persistencia</div><h1 class="title">No fue posible continuar</h1><p class="copy">MySQL presentó un error al ' + esc(phase) + '.</p><div class="details"><b>Sesión:</b> ' + esc(session) + '<br><b>Tabla:</b> ' + esc(table) + '</div><p class="hint">Verifica la credencial del nodo y la tabla indicada. Consulta la ejecución en n8n para ver el detalle técnico.</p></main></body></html>';
 return [{ json: { html_response: html } }];`,
   },
   id: 'etapa2-html-error-persistencia',
