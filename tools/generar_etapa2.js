@@ -267,10 +267,10 @@ lookup.name = 'Consultar Contexto Etapa 1 MySQL';
 lookup.position = [-3040, 0];
 lookup.parameters = {
   operation: 'executeQuery',
-  query: "SELECT $1 AS workflow_session_solicitada, $2 AS transition_mode, $3 AS handoff_query_json, $4 AS public_base, DATABASE() AS esquema_credencial, COUNT(*) AS coincidencias, IF(COUNT(*) >= 1 AND MAX(tipo_sim) IS NOT NULL AND TRIM(MAX(tipo_sim)) <> '', 'Si', 'No') AS contexto_valido, IF(MAX(resultado_etapa_1) = 'continuar_parte_2' AND MAX(next_step) = 'parte_2_tipo_sim', 'Si', 'No') AS contrato_canonico, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_1) AS resultado_etapa_1, MAX(next_step) AS next_step FROM CRM.n8n_nsf_respuestas WHERE workflow_session = $1",
+  query: "SELECT $1 AS workflow_session_solicitada, $2 AS transition_mode, $3 AS handoff_query_json, $4 AS public_base, DATABASE() AS esquema_credencial, COUNT(*) AS coincidencias, IF(COUNT(*) >= 1 AND MAX(tipo_sim) IS NOT NULL AND TRIM(MAX(tipo_sim)) <> '', 'Si', 'No') AS contexto_valido, IF(MAX(resultado_etapa_1) = 'continuar_parte_2' AND MAX(next_step) = 'parte_2_tipo_sim', 'Si', 'No') AS contrato_canonico, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_1) AS resultado_etapa_1, MAX(next_step) AS next_step FROM CRM.n8n_nsf_respuestas WHERE workflow_session = $5",
   options: {
     queryBatching: 'single',
-    queryReplacement: '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base ] }}',
+      queryReplacement: '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base, $json.workflow_session ] }}',
     replaceEmptyStrings: true,
     detailedOutput: false,
   },

@@ -255,7 +255,10 @@ for (const form of forms) {
 }
 
 const lookup = nodes.get('Consultar Contexto Etapa 1 MySQL');
-if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $1')) fail('La consulta no valida workflow_session');
+if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $5')) fail('La consulta no separa el parámetro del filtro workflow_session');
+if (JSON.stringify(lookup?.parameters?.query?.match(/\$\d+/g)) !== JSON.stringify(['$1', '$2', '$3', '$4', '$5'])) {
+  fail('Los parámetros de contexto no están en orden posicional seguro para MySQL');
+}
 if (!lookup?.parameters?.query?.includes('FROM CRM.n8n_nsf_respuestas')) fail('La consulta no fija CRM.n8n_nsf_respuestas');
 if (!lookup?.parameters?.query?.includes('DATABASE() AS esquema_credencial')) fail('La consulta no informa el esquema de la credencial');
 if (!lookup?.parameters?.query?.includes('COUNT(*) AS coincidencias')) fail('La consulta no informa coincidencias');
@@ -263,7 +266,7 @@ if (!lookup?.parameters?.query?.includes("MAX(resultado_etapa_1) = 'continuar_pa
 if (!lookup?.parameters?.query?.includes("MAX(next_step) = 'parte_2_tipo_sim'")) fail('La consulta no audita next_step');
 if (!lookup?.parameters?.query?.includes("MAX(tipo_sim) IS NOT NULL")) fail('La consulta no exige tipo_sim');
 if (!lookup?.parameters?.query?.includes('AS contrato_canonico')) fail('La consulta no expone contrato_canonico');
-if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base ] }}') fail('La consulta de contexto no está parametrizada');
+if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base, $json.workflow_session ] }}') fail('La consulta de contexto no está parametrizada');
 
 const invalidContext = nodes.get('HTML Contexto Invalido');
 try {

@@ -85,7 +85,7 @@ const lookup = nodes2.get('Consultar Contexto Etapa 1 MySQL');
 const query = lookup?.parameters?.query || '';
 for (const token of [
   'FROM CRM.n8n_nsf_respuestas',
-  'workflow_session = $1',
+  'workflow_session = $5',
   "MAX(resultado_etapa_1) = 'continuar_parte_2'",
   "MAX(next_step) = 'parte_2_tipo_sim'",
   'MAX(tipo_sim) IS NOT NULL',
@@ -304,6 +304,7 @@ if (!errors.some((error) => error.includes('etapa 2 → etapa 3') || error.inclu
 const lookup3 = nodes3.get('Consultar Contexto Etapa 2 MySQL');
 for (const token of [
   'FROM CRM.n8n_nsf_etapa2',
+  'workflow_session = $2',
   "resultado_etapa_2 = 'continuar_parte_3'",
   "next_step = 'parte_3_configuracion_equipo'",
   "suma_ok = 'Si'",

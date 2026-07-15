@@ -36,10 +36,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT $1 AS workflow_session_solicitada, DATABASE() AS esquema_credencial, COUNT(*) AS coincidencias, IF(COUNT(*) = 1, 'Si', 'No') AS contexto_valido, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_2) AS resultado_etapa_2, MAX(next_step) AS next_step, MAX(suma_ok) AS suma_ok FROM CRM.n8n_nsf_etapa2 WHERE workflow_session = $1 AND resultado_etapa_2 = 'continuar_parte_3' AND next_step = 'parte_3_configuracion_equipo' AND suma_ok = 'Si'",
+        "query": "SELECT $1 AS workflow_session_solicitada, DATABASE() AS esquema_credencial, COUNT(*) AS coincidencias, IF(COUNT(*) = 1, 'Si', 'No') AS contexto_valido, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_2) AS resultado_etapa_2, MAX(next_step) AS next_step, MAX(suma_ok) AS suma_ok FROM CRM.n8n_nsf_etapa2 WHERE workflow_session = $2 AND resultado_etapa_2 = 'continuar_parte_3' AND next_step = 'parte_3_configuracion_equipo' AND suma_ok = 'Si'",
         "options": {
           "queryBatching": "single",
-          "queryReplacement": "={{ [ $json.workflow_session ] }}",
+          "queryReplacement": "={{ [ $json.workflow_session, $json.workflow_session ] }}",
           "replaceEmptyStrings": true,
           "detailedOutput": false
         }

@@ -103,6 +103,9 @@ for (const name of forbiddenNames) if (nodes.has(name)) fail(`Nodo redundante pr
 
 const lookup = nodes.get('Consultar Contexto Etapa 2 MySQL');
 if (!lookup?.parameters?.query?.includes('FROM CRM.n8n_nsf_etapa2')) fail('La consulta no fija CRM.n8n_nsf_etapa2');
+if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $2')) fail('La consulta de etapa 3 reutiliza incorrectamente el parámetro $1');
+if (JSON.stringify(lookup?.parameters?.query?.match(/\$\d+/g)) !== JSON.stringify(['$1', '$2'])) fail('Los parámetros de etapa 3 no son posicionalmente seguros');
+if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.workflow_session ] }}') fail('Los parámetros de consulta de etapa 3 son incorrectos');
 for (const marker of [
   "resultado_etapa_2 = 'continuar_parte_3'",
   "next_step = 'parte_3_configuracion_equipo'",
@@ -110,7 +113,6 @@ for (const marker of [
 ]) {
   if (!lookup?.parameters?.query?.includes(marker)) fail(`Contrato de entrada incompleto: ${marker}`);
 }
-if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session ] }}') fail('Consulta de contexto no parametrizada');
 
 function target(name, branch) {
   return (outgoing.get(name) || []).find((edge) => edge.branch === branch)?.node;
