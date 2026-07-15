@@ -54,6 +54,7 @@ if (!errors.some((error) => error.includes('modo production') || error.includes(
 const webhook1 = nodes1.get('Apertura del Flujo');
 const handoffWebhook = nodes1.get('Continuar a Etapa 2');
 const webhook2 = nodes2.get('Apertura Etapa 2');
+const handoffWebhook2 = nodes2.get('Continuar directamente a Diagnostico de Equipo');
 const webhook3 = nodes3.get('Apertura Etapa 3');
 if (webhook1?.parameters?.path !== 'etb-form') fail('Webhook de etapa 1 inesperado.');
 if (handoffWebhook?.parameters?.httpMethod !== 'GET' ||
@@ -62,16 +63,22 @@ if (handoffWebhook?.parameters?.httpMethod !== 'GET' ||
   fail('Webhook puente de etapa 1 inesperado.');
 }
 if (webhook2?.parameters?.path !== 'etb-form-parte-2') fail('Webhook de etapa 2 inesperado.');
+if (handoffWebhook2?.parameters?.httpMethod !== 'GET' ||
+    handoffWebhook2?.parameters?.path !== 'etb-form-parte-2-handoff' ||
+    handoffWebhook2?.parameters?.responseMode !== 'responseNode') {
+  fail('Webhook puente de etapa 2 inesperado.');
+}
 if (webhook3?.parameters?.path !== 'etb-form-parte-3') fail('Webhook de etapa 3 inesperado.');
-const triggerIds = [webhook1?.webhookId, handoffWebhook?.webhookId, webhook2?.webhookId, webhook3?.webhookId];
+const triggerIds = [webhook1?.webhookId, handoffWebhook?.webhookId, webhook2?.webhookId, handoffWebhook2?.webhookId, webhook3?.webhookId];
 if (triggerIds.some((id) => !id) || new Set(triggerIds).size !== triggerIds.length) {
   fail('Los triggers de ambas etapas no tienen webhookId independientes.');
 }
 if (webhook1?.parameters?.path === 'etb-form' &&
     handoffWebhook?.parameters?.path === 'etb-form-handoff' &&
     webhook2?.parameters?.path === 'etb-form-parte-2' &&
+    handoffWebhook2?.parameters?.path === 'etb-form-parte-2-handoff' &&
     webhook3?.parameters?.path === 'etb-form-parte-3') {
-  ok('Cuatro webhooks independientes y sin colisión');
+  ok('Cinco webhooks independientes y sin colisión');
 }
 
 const lookup = nodes2.get('Consultar Contexto Etapa 1 MySQL');
@@ -192,6 +199,15 @@ if (!reaches(stage2, 'Guardar Etapa 2 MySQL', 'Responder Cierre Etapa 2')) {
 if (nodes2.has('Form Confirmar Servicio Normalizado') || nodes2.has('Espera Confirmar Servicio Normalizado')) {
   fail('La etapa 2 conserva la pantalla redundante de servicio normalizado.');
 }
+if (nodes2.has('Form Iniciar Etapa 2') || nodes2.has('Espera Iniciar Etapa 2')) {
+  fail('La etapa 2 conserva una pantalla intermedia antes de las decisiones.');
+}
+if (!reaches(stage2, 'Continuar directamente a Diagnostico de Equipo', 'Guardar Etapa 2 MySQL')) {
+  fail('El webhook puente de SUMA no alcanza la persistencia.');
+}
+if (!reaches(stage2, 'Continuar directamente a Diagnostico de Equipo', 'Redirigir a Etapa 3')) {
+  fail('El webhook puente de SUMA no alcanza el redirect al diagnóstico del equipo.');
+}
 if (!reaches(stage2, 'IF SUMA Activo y Recursos', 'Redirigir a Etapa 3')) {
   fail('La rama SUMA correcta no alcanza la etapa 3.');
 } else {
@@ -200,8 +216,56 @@ if (!reaches(stage2, 'IF SUMA Activo y Recursos', 'Redirigir a Etapa 3')) {
 
 const prepare2 = nodes2.get('Preparar Registro Etapa 2 SQL');
 const redirect2 = nodes2.get('Redirigir a Etapa 3');
+const sumaForm = nodes2.get('Form Validar SUMA');
+const sumaCfgMatch = String(sumaForm?.parameters?.jsCode || '').match(/^const cfg = (\{.*\});$/m);
+const sumaCfg = sumaCfgMatch ? JSON.parse(sumaCfgMatch[1]) : {};
+if (sumaCfg.handoffPath !== 'etb-form-parte-2-handoff' || sumaCfg.handoffWhen?.suma_ok !== 'Si') {
+  fail('El formulario SUMA no entrega su respuesta positiva al webhook puente.');
+}
+try {
+  const html = new Function('$execution', '$json', sumaForm.parameters.jsCode)(
+    { id: 'suma-ui', mode: 'production', resumeUrl: 'https://n8n.example.test/webhook-waiting/434' },
+    { query: { workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica' } },
+  )?.[0]?.json?.html_response || '';
+  if (!html.includes('https://n8n.example.test/webhook/etb-form-parte-2-handoff')) {
+    fail('El frontend SUMA no construye la URL absoluta del webhook puente.');
+  }
+  if (!html.includes('shouldUseHandoff(data)')) {
+    fail('El frontend SUMA no cambia de destino al seleccionar Sí.');
+  }
+  if (!html.includes('name="__workflow_session" value="sesion-etapa3-prueba"')) {
+    fail('El frontend SUMA no conserva la sesión original.');
+  }
+  if (html.includes('name="workflow_session"')) {
+    fail('El frontend SUMA duplica workflow_session en la URL.');
+  }
+} catch (error) {
+  fail(`No fue posible renderizar el handoff SUMA: ${error.message}`);
+}
 if (redirect2?.parameters?.respondWith !== 'redirect' || !String(redirect2?.parameters?.redirectURL || '').includes('handoff_url')) {
   fail('Redirect nativo de etapa 2 a etapa 3 ausente.');
+}
+try {
+  const normalizeHandoff = nodes2.get('Normalizar Handoff a Diagnostico de Equipo');
+  const prepareHandoff = nodes2.get('Preparar Handoff SQL y Continuidad');
+  const normalized = new Function('$json', normalizeHandoff.parameters.jsCode)({
+    headers: { host: 'n8n.example.test', 'x-forwarded-proto': 'https' },
+    query: { __workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica', suma_ok: 'Si' },
+  })?.[0]?.json;
+  const handoffContext = new Function('$json', prepareHandoff.parameters.jsCode)({
+    ...normalized,
+    contexto_valido: 'Si',
+    workflow_session: 'sesion-etapa3-prueba',
+  })?.[0]?.json;
+  const preparedFromBridge = new Function('$json', '$execution', prepare2.parameters.jsCode)(
+    handoffContext,
+    { id: 'integracion-puente-etapa2', resumeUrl: '' },
+  )?.[0]?.json;
+  if (preparedFromBridge?.handoff_url !== 'https://n8n.example.test/webhook/etb-form-parte-3?workflow_session=sesion-etapa3-prueba') {
+    fail(`El puente real construye una URL inesperada: ${preparedFromBridge?.handoff_url || 'vacía'}`);
+  }
+} catch (error) {
+  fail(`No fue posible simular el webhook puente de SUMA: ${error.message}`);
 }
 try {
   const prepared2 = new Function('$json', '$execution', prepare2.parameters.jsCode)(

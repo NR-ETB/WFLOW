@@ -25,7 +25,7 @@ const workflow = {
   connections: {},
   active: false,
   settings: { executionOrder: 'v1' },
-  versionId: 'etapa3-v1-configuracion-equipo-20260714',
+  versionId: 'etapa3-v2-diagnostico-continuo-20260715',
   meta: { templateCredsSetupCompleted: false },
   id: 'NingunServicioFuncionaEtapa3V1',
   tags: [],
@@ -206,7 +206,7 @@ return [{ json: { query: { workflow_session: session, tipo_sim: tipo } } }];`,
 
 add({
   parameters: {
-    jsCode: `const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071830"><title>ETB - Contexto no válido</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(100%,720px);background:#10284a;border:1px solid rgba(29,161,242,.25);border-radius:20px;padding:clamp(24px,5vw,44px);box-shadow:0 28px 70px rgba(0,0,0,.55)}.tag{color:#ff8fa3;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.title{font-size:clamp(26px,6vw,40px);margin:14px 0}.copy{color:rgba(240,246,255,.72);font-size:16px;line-height:1.6}.code{margin-top:20px;padding:14px;border-radius:12px;background:#081a34;color:#38c7ff;overflow-wrap:anywhere}</style></head><body><main class="card"><div class="tag">Etapa 3 · Acceso no válido</div><h1 class="title">No fue posible recuperar la gestión</h1><p class="copy">La etapa 2 no terminó en la ruta de configuración del equipo.</p><div class="code">Inicia nuevamente desde la etapa 1 y conserva workflow_session.</div></main></body></html>';
+    jsCode: `const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071830"><title>ETB - Contexto no válido</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(100%,720px);background:#10284a;border:1px solid rgba(29,161,242,.25);border-radius:20px;padding:clamp(24px,5vw,44px);box-shadow:0 28px 70px rgba(0,0,0,.55)}.tag{color:#ff8fa3;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.title{font-size:clamp(26px,6vw,40px);margin:14px 0}.copy{color:rgba(240,246,255,.72);font-size:16px;line-height:1.6}.code{margin-top:20px;padding:14px;border-radius:12px;background:#081a34;color:#38c7ff;overflow-wrap:anywhere}</style></head><body><main class="card"><div class="tag">Acceso no válido</div><h1 class="title">No fue posible recuperar la gestión</h1><p class="copy">La gestión anterior no terminó en la ruta de configuración del equipo.</p><div class="code">Inicia nuevamente desde el comienzo y conserva workflow_session.</div></main></body></html>';
 return [{ json: { html_response: html } }];`,
   },
   id: 'etapa3-contexto-invalido-html',
@@ -229,7 +229,7 @@ const failure = makeFormSet('Verificar Configuracion Equipo', {
   titleAccent: 'equipo móvil',
   question: 'TIPO DE FALLA ACTUAL',
   subtitle: 'Selecciona el síntoma que continúa después de validar la línea y los recursos en SUMA Móvil.',
-  tag: 'Etapa 3 · Configuración del equipo',
+  tag: 'Diagnóstico · Configuración del equipo',
   options: [
     { value: 'DatosRed', label: 'Falla de datos o red' },
     { value: 'Llamadas', label: 'Falla en llamadas' },
@@ -245,7 +245,7 @@ const equipment = makeFormSet('Confirmar Equipo Cliente', {
   titleAccent: 'equipo del cliente',
   question: 'TIPO DE EQUIPO',
   subtitle: 'Identifica el equipo antes de consultar la plataforma de configuración. No registres nombres, teléfonos ni IMEI en la URL.',
-  tag: 'Etapa 3 · Identificación del equipo',
+  tag: 'Diagnóstico · Identificación del equipo',
   options: [
     { value: 'Android', label: 'Equipo Android' },
     { value: 'iPhone', label: 'Apple iPhone' },
@@ -260,7 +260,7 @@ const configure = makeFormSet('Configurar Equipo Plataforma', {
   titleAccent: 'equipo',
   question: 'CONFIGURACIÓN DE DATOS Y RED',
   subtitle: 'Consulta el equipo en la plataforma operativa definida y aplica únicamente la configuración relacionada con datos y red.',
-  tag: 'Etapa 3 · Plataforma de configuración',
+  tag: 'Diagnóstico · Plataforma de configuración',
   options: [{ value: 'Revisada', label: 'Configuración revisada y aplicada' }],
   allowBack: true,
 }, [40, -950]);
@@ -271,7 +271,7 @@ const configResult = makeFormSet('Resultado Configuracion', {
   titleAccent: 'configuración',
   question: '¿FUNCIONÓ DESPUÉS DE CONFIGURAR?',
   subtitle: 'Confirma con el cliente si se recuperaron los servicios afectados.',
-  tag: 'Etapa 3 · Resultado de configuración',
+  tag: 'Diagnóstico · Resultado de configuración',
   options: [
     { value: 'Si', label: 'Sí, el servicio funciona' },
     { value: 'No', label: 'No funcionó' },
@@ -286,7 +286,7 @@ const solvedConfig = makeFormSet('PQR Solucionada Configuracion', {
   titleAccent: 'configuración solucionada',
   question: 'CONFIRMACIÓN DEL CIERRE',
   subtitle: 'Confirma que el servicio fue validado con el cliente y que la PQR quedó en estado solucionado.',
-  tag: 'Etapa 3 · Solución por configuración',
+  tag: 'Diagnóstico · Solución por configuración',
   buttonLabel: 'Guardar y finalizar',
   options: [{ value: 'Si', label: 'PQR actualizada como solucionada' }],
   allowBack: true,
@@ -301,7 +301,7 @@ const alternate = makeFormSet('Validar Dispositivo Alterno', {
   titleAccent: 'dispositivo',
   question: '¿HAY OTRO EQUIPO DISPONIBLE?',
   subtitle: 'Confirma si se puede realizar una prueba cruzada insertando la misma SIM en otro equipo liberado y en buen estado.',
-  tag: 'Etapa 3 · Prueba cruzada',
+  tag: 'Diagnóstico · Prueba cruzada',
   options: [
     { value: 'Si', label: 'Sí, hay otro dispositivo' },
     { value: 'No', label: 'No hay otro dispositivo' },
@@ -317,7 +317,7 @@ const crossTest = makeFormSet('Prueba Cruzada SIM', {
   titleAccent: 'otro equipo',
   question: 'RESULTADO DE LA PRUEBA CRUZADA',
   subtitle: 'Retira la SIM del equipo afectado e insértala en un dispositivo liberado y en buen estado. Valida red, llamadas y datos móviles.',
-  tag: 'Etapa 3 · Cambio de dispositivo',
+  tag: 'Diagnóstico · Cambio de dispositivo',
   options: [
     { value: 'Si', label: 'Reconoce red, llamadas y datos' },
     { value: 'No', label: 'La falla continúa' },
@@ -332,7 +332,7 @@ const solvedDevice = makeFormSet('PQR Solucionada Dispositivo', {
   titleAccent: 'dispositivo',
   question: 'CIERRE POR FALLA DEL EQUIPO',
   subtitle: 'La SIM funciona en otro equipo. Confirma al cliente que la novedad corresponde al dispositivo y deja la PQR solucionada.',
-  tag: 'Etapa 3 · Error del dispositivo',
+  tag: 'Diagnóstico · Error del dispositivo',
   buttonLabel: 'Guardar y finalizar',
   options: [{ value: 'Si', label: 'Cliente informado y PQR solucionada' }],
   allowBack: true,
@@ -347,7 +347,7 @@ const restart = makeFormSet('Reiniciar y Reinsertar SIM', {
   titleAccent: 'SIM',
   question: 'RESULTADO DESPUÉS DEL REINICIO',
   subtitle: 'Apaga el equipo, retira la SIM, espera 20 segundos, insértala correctamente y enciende nuevamente. Luego valida el servicio.',
-  tag: 'Etapa 3 · Reinicio del equipo',
+  tag: 'Diagnóstico · Reinicio del equipo',
   options: [
     { value: 'Si', label: 'Sí, el servicio funciona' },
     { value: 'No', label: 'No, la falla continúa' },
@@ -363,7 +363,7 @@ const solvedRestart = makeFormSet('PQR Solucionada Reinicio', {
   titleAccent: 'reinicio exitoso',
   question: 'CONFIRMACIÓN DEL CIERRE',
   subtitle: 'Confirma con el cliente que el servicio funciona y deja la PQR en estado solucionado.',
-  tag: 'Etapa 3 · Solución por reinicio',
+  tag: 'Diagnóstico · Solución por reinicio',
   buttonLabel: 'Guardar y finalizar',
   options: [{ value: 'Si', label: 'PQR actualizada como solucionada' }],
   allowBack: true,
@@ -378,7 +378,7 @@ const escalation = makeFormSet('Escalar Segundo Nivel', {
   titleAccent: 'segundo nivel',
   question: 'PLANTILLA DE ESCALAMIENTO',
   subtitle: 'Completa la plantilla operativa con servicio afectado, marca/modelo/IMEI, reportes, homologación, listas negras, bloqueos, datos de contacto, ciudad, recursos en Charging-SI y estado de pagos. No uses datos personales de ejemplo.',
-  tag: 'Etapa 3 · Escalamiento técnico',
+  tag: 'Diagnóstico · Escalamiento técnico',
   buttonLabel: 'Guardar y finalizar',
   options: [{ value: 'Si', label: 'Escalamiento enviado a segundo nivel' }],
   allowBack: true,
@@ -416,7 +416,7 @@ const answers = {
 return [{ json: {
   workflow_session: raw('workflow_session') || '',
   execution_id: String($execution.id || ''),
-  workflow_version: 'etapa3-v1-configuracion-equipo-20260714',
+  workflow_version: 'etapa3-v2-diagnostico-continuo-20260715',
   resultado_etapa_3: outcome,
   next_step: raw('__next_step') || 'fin_flujo',
   ...answers,

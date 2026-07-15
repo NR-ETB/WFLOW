@@ -16,7 +16,7 @@ flowchart LR
 | Etapa | Alcance | Webhook de producción | Persistencia |
 | --- | --- | --- | --- |
 | 1 | Estado de línea, pagos, GESTFAC, ICCID, IMEI, bloqueo, documentación y tipo de SIM | `/webhook/etb-form` + puente interno `/webhook/etb-form-handoff` | `CRM.n8n_nsf_respuestas` |
-| 2 | eSIM/SIM física/MultiSIM, QR, portabilidad, NIP y recursos en SUMA Móvil | `/webhook/etb-form-parte-2` | `CRM.n8n_nsf_etapa2` |
+| 2 | eSIM/SIM física/MultiSIM, QR, portabilidad, NIP y recursos en SUMA Móvil | `/webhook/etb-form-parte-2` + puente interno `/webhook/etb-form-parte-2-handoff` | `CRM.n8n_nsf_etapa2` |
 | 3 | Configuración del equipo, prueba cruzada de SIM, reinicio, PQR y segundo nivel | `/webhook/etb-form-parte-3` | `CRM.n8n_nsf_etapa3` |
 
 ## Archivos principales
@@ -98,7 +98,7 @@ La prueba más estable se realiza con los tres workflows activos y sus URL de pr
 1. Ejecuta los scripts `10_etapa2_workbench_setup.sql` y `20_etapa3_workbench_setup.sql`.
 2. Importa `Ningun Servicio Funciona - 1.json`, `Ningun Servicio Funciona - 2.json` y `Ningun Servicio Funciona - 3.json`.
 3. Asigna la credencial `CRM` a los cinco nodos MySQL involucrados.
-4. Guarda y activa/publica los tres workflows. La etapa 1 registra dos rutas de producción: `/webhook/etb-form` y `/webhook/etb-form-handoff`.
+4. Guarda y activa/publica los tres workflows. La etapa 1 registra `/webhook/etb-form` y `/webhook/etb-form-handoff`; la etapa 2 registra `/webhook/etb-form-parte-2` y `/webhook/etb-form-parte-2-handoff`.
 5. Abre únicamente `/webhook/etb-form` y completa la etapa 1 hasta seleccionar el tipo de SIM.
 6. Al guardar, el navegador debe abrir `/webhook/etb-form-parte-2?workflow_session=...` automáticamente.
 7. En SUMA selecciona “Activo y con recursos”; no debe aparecer una pantalla de cierre de etapa 2.
@@ -122,6 +122,19 @@ Form Tipo SIM
 Los nodos antiguos `Espera Tipo SIM` e `IF Volver Tipo SIM` no deben existir en la versión importada.
 
 `Preparar Registro SQL` construye `handoff_url` a partir de `webhookUrl` o de los encabezados `x-forwarded-*`, sin depender del constructor global `URL` del sandbox. El Redirect nunca debe apuntar a `/webhook/undefined`.
+
+La transición interna esperada después de confirmar SUMA es:
+
+```text
+Form Validar SUMA (Activo y con recursos)
+  → Continuar directamente a Diagnostico de Equipo (Webhook etb-form-parte-2-handoff)
+  → Consultar Contexto Etapa 1 MySQL
+  → Preparar Registro Etapa 2 SQL
+  → Guardar Etapa 2 MySQL
+  → Redirigir a Etapa 3
+```
+
+El formulario publica directamente en el webhook puente de producción. Por eso el navegador no queda detenido en `/webhook-waiting/...`. El flujo 2 actualizado debe volver a importarse y publicarse para registrar esta nueva ruta.
 
 ## Contrato entre etapas
 
@@ -169,6 +182,8 @@ suma_ok = Si
 
 ## Comportamiento de la etapa 2
 
+- Abre directamente la primera decisión según el tipo de SIM guardado; no muestra una pantalla “Iniciar etapa 2”.
+- Las etiquetas visibles usan “Diagnóstico” y no números de etapa, de modo que los tres workflows se perciben como un solo proceso.
 - **eSIM:** valida el escaneo y la recuperación del QR antes de revisar portabilidad.
 - **SIM física:** comienza directamente con la validación de línea portada.
 - **MultiSIM:** solicita identificar si el componente afectado es virtual o físico y usa la ruta correspondiente.
@@ -176,7 +191,7 @@ suma_ok = Si
 - **NIP pendiente:** guarda `espera_nip` y `next_step = revisar_nip`; no deja una ejecución esperando indefinidamente.
 - **NIP vencido:** registra `gestor_nip_vencido` después de confirmar el escalamiento.
 - **SUMA sin recursos o sin sincronización:** finaliza con `gestor_sincronizacion_suma`.
-- **SUMA activo y con recursos:** guarda `continuar_parte_3` y redirige directamente, sin pedir una confirmación de servicio normalizado.
+- **SUMA activo y con recursos:** entrega la respuesta al webhook puente, guarda `continuar_parte_3` y redirige directamente, sin pantalla de cierre ni confirmación de servicio normalizado.
 
 ## Comportamiento de la etapa 3
 

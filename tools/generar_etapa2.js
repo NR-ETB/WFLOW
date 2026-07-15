@@ -27,7 +27,7 @@ const workflow = {
   connections: {},
   active: false,
   settings: { executionOrder: 'v1' },
-  versionId: 'etapa2-v2-continuidad-etapa3-20260714',
+  versionId: 'etapa2-v3-continuidad-transparente-20260715',
   meta: { templateCredsSetupCompleted: false },
   id: 'NingunServicioFuncionaEtapa2V2',
   tags: [],
@@ -75,28 +75,66 @@ function buildFormCode(config) {
   };
   if (config.outcome) cfg.outcome = config.outcome;
   if (config.nextStep) cfg.nextStep = config.nextStep;
+  if (config.handoffPath) cfg.handoffPath = config.handoffPath;
+  if (config.handoffWhen) cfg.handoffWhen = config.handoffWhen;
 
   let code = baseFormCode.replace(match[0], `const cfg = ${JSON.stringify(cfg)};`);
   code = code.replace(
+    "const session = fieldValue('__workflow_session') || String(Date.now()) + '-' + Math.random().toString(36).slice(2);",
+    "const session = fieldValue('__workflow_session') || fieldValue('workflow_session') || String(Date.now()) + '-' + Math.random().toString(36).slice(2);",
+  );
+  code = code.replace(
+    "if (internal.has(key) || key === cfg.field || key === '__workflow_session') return;",
+    "if (internal.has(key) || key === cfg.field || key === '__workflow_session' || key === 'workflow_session') return;",
+  );
+  code = code.replace(
     "  const testFlag = executionMode === 'test' ? 'true' : 'false';",
-    "  const testFlag = executionMode === 'test' ? 'true' : 'false';\n  const completionFlag = cfg.finishMode === 'complete' ? 'true' : 'false';",
+    `  const handoffWhen = JSON.stringify(cfg.handoffWhen || {});
+  const cleanHandoffPath = String(cfg.handoffPath || '').replace(/^\\/+/, '');
+  let handoffUrl = '';
+  if (cleanHandoffPath) {
+    try {
+      const parsed = new URL(String(resumeUrl || ''));
+      const markers = ['/webhook-waiting/', '/webhook-test/', '/webhook/'];
+      let basePath = '';
+      for (const marker of markers) {
+        const markerIndex = parsed.pathname.indexOf(marker);
+        if (markerIndex >= 0) { basePath = parsed.pathname.slice(0, markerIndex); break; }
+      }
+      parsed.pathname = basePath + '/webhook/' + cleanHandoffPath;
+      parsed.search = '';
+      parsed.hash = '';
+      handoffUrl = parsed.toString();
+    } catch (e) {}
+  }
+  const handoffUrlJson = JSON.stringify(handoffUrl);
+  const testFlag = executionMode === 'test' ? 'true' : 'false';
+  const completionFlag = cfg.finishMode === 'complete' ? 'true' : 'false';`,
   );
   code = code.replace(
     "var startUrl=' + startUrlJson + ';var isTestMode=' + testFlag + ';function showCompletion()",
-    "var startUrl=' + startUrlJson + ';var isTestMode=' + testFlag + ';var finishComplete=' + completionFlag + ';function showCompletion()",
+    "var startUrl=' + startUrlJson + ';var handoffUrl=' + handoffUrlJson + ';var handoffWhen=' + handoffWhen + ';var isTestMode=' + testFlag + ';var finishComplete=' + completionFlag + ';function showCompletion()",
+  );
+  code = code.replace(
+    'function shouldReturnToStart(data){if(cfgFinishToStart)return true;return Object.keys(cfgFinishToStartWhen).some(function(k){return data.get(k)===cfgFinishToStartWhen[k];});}',
+    'function shouldReturnToStart(data){if(cfgFinishToStart)return true;return Object.keys(cfgFinishToStartWhen).some(function(k){return data.get(k)===cfgFinishToStartWhen[k];});}function shouldUseHandoff(data){var keys=Object.keys(handoffWhen||{});return !!handoffUrl&&keys.length>0&&keys.every(function(k){return data.get(k)===String(handoffWhen[k]);});}',
+  );
+  code = code.replace(
+    'err.classList.remove("is-visible");err.style.display="none";if(shouldReturnToStart(data))',
+    'err.classList.remove("is-visible");err.style.display="none";if(shouldUseHandoff(data)){form.action=handoffUrl;}if(shouldReturnToStart(data))',
   );
   code = code.replace(
     'if(isTestMode||!startUrl){showCompletion();return;}',
     'if(finishComplete||isTestMode||!startUrl){showCompletion();return;}',
   );
-  code = code.replace('Proceso finalizado', 'Etapa 2 finalizada');
+  code = code.replace('Proceso finalizado', 'Gestión finalizada');
   code = code.replace(
     'Las respuestas fueron procesadas y enviadas al cierre del flujo.',
-    'Las respuestas fueron guardadas correctamente para el cierre de esta etapa.',
+    'Las respuestas fueron guardadas correctamente.',
   );
   code = code.replace(
     'Modo de prueba: vuelve a n8n y pulsa <strong>Test workflow</strong> para iniciar una nueva ejecución.',
-    'Puedes cerrar esta ventana. Para una nueva gestión, inicia otra sesión desde la etapa correspondiente.',
+    'Puedes cerrar esta ventana. Para una nueva gestión, inicia otra sesión desde el comienzo.',
   );
   return code;
 }
@@ -165,12 +203,28 @@ webhook.parameters.responseMode = 'responseNode';
 webhook.parameters.options = { allowedOrigins: '*' };
 add(webhook);
 
+const handoffWebhook = clone(sourceNode('Apertura del Flujo'));
+handoffWebhook.id = 'etapa2-webhook-handoff-etapa3';
+handoffWebhook.name = 'Continuar directamente a Diagnostico de Equipo';
+handoffWebhook.webhookId = 'etb-form-parte-2-handoff';
+handoffWebhook.position = [-3600, -520];
+handoffWebhook.parameters.httpMethod = 'GET';
+handoffWebhook.parameters.path = 'etb-form-parte-2-handoff';
+handoffWebhook.parameters.responseMode = 'responseNode';
+handoffWebhook.parameters.options = { allowedOrigins: '*' };
+add(handoffWebhook);
+
 add({
   parameters: {
     jsCode: `const query = ($json && $json.query) ? $json.query : {};
 const raw = Array.isArray(query.workflow_session) ? query.workflow_session[0] : query.workflow_session;
 const workflowSession = String(raw || '').trim();
-return [{ json: { workflow_session: workflowSession || '__missing__' } }];`,
+return [{ json: {
+  workflow_session: workflowSession || '__missing__',
+  transition_mode: 'ui',
+  handoff_query_json: '{}',
+  public_base: '',
+} }];`,
   },
   id: 'etapa2-normalizar-entrada',
   name: 'Normalizar Entrada Etapa 2',
@@ -179,16 +233,43 @@ return [{ json: { workflow_session: workflowSession || '__missing__' } }];`,
   position: [-3320, 0],
 });
 
+add({
+  parameters: {
+    jsCode: `const input = $json || {};
+const query = input.query || {};
+const first = (value) => Array.isArray(value) ? value[0] : value;
+const workflowSession = String(first(query.workflow_session) || first(query.__workflow_session) || '').trim();
+const headers = input.headers || {};
+const forwardedProto = String(first(headers['x-forwarded-proto']) || '').split(',')[0].trim();
+const forwardedHost = String(first(headers['x-forwarded-host']) || '').split(',')[0].trim();
+const host = forwardedHost || String(first(headers.host) || '').trim();
+const proto = forwardedProto || 'https';
+const publicBase = host ? proto + '://' + host : '';
+const normalizedQuery = { ...query, workflow_session: workflowSession, __workflow_session: workflowSession };
+return [{ json: {
+  workflow_session: workflowSession || '__missing__',
+  transition_mode: 'handoff',
+  handoff_query_json: JSON.stringify(normalizedQuery),
+  public_base: publicBase,
+} }];`,
+  },
+  id: 'etapa2-normalizar-handoff-etapa3',
+  name: 'Normalizar Handoff a Diagnostico de Equipo',
+  type: 'n8n-nodes-base.code',
+  typeVersion: 2,
+  position: [-3320, -520],
+});
+
 const lookup = clone(sourceNode('Guardar Respuestas MySQL'));
 lookup.id = 'etapa2-consultar-etapa1-mysql';
 lookup.name = 'Consultar Contexto Etapa 1 MySQL';
 lookup.position = [-3040, 0];
 lookup.parameters = {
   operation: 'executeQuery',
-  query: "SELECT $1 AS workflow_session_solicitada, IF(COUNT(*) = 1, 'Si', 'No') AS contexto_valido, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_1) AS resultado_etapa_1, MAX(next_step) AS next_step FROM n8n_nsf_respuestas WHERE workflow_session = $1 AND resultado_etapa_1 = 'continuar_parte_2' AND next_step = 'parte_2_tipo_sim' AND tipo_sim IS NOT NULL",
+  query: "SELECT $1 AS workflow_session_solicitada, $2 AS transition_mode, $3 AS handoff_query_json, $4 AS public_base, IF(COUNT(*) = 1, 'Si', 'No') AS contexto_valido, MAX(workflow_session) AS workflow_session, MAX(tipo_sim) AS tipo_sim, MAX(resultado_etapa_1) AS resultado_etapa_1, MAX(next_step) AS next_step FROM n8n_nsf_respuestas WHERE workflow_session = $1 AND resultado_etapa_1 = 'continuar_parte_2' AND next_step = 'parte_2_tipo_sim' AND tipo_sim IS NOT NULL",
   options: {
     queryBatching: 'single',
-    queryReplacement: '={{ [ $json.workflow_session ] }}',
+    queryReplacement: '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base ] }}',
     replaceEmptyStrings: true,
     detailedOutput: false,
   },
@@ -199,6 +280,7 @@ delete lookup.credentials;
 add(lookup);
 
 makeIf('IF Contexto Etapa 1 Valido', '={{ $json.contexto_valido }}', 'Si', [-2760, 0]);
+makeIf('IF Entrada por Handoff', '={{ $json.transition_mode }}', 'handoff', [-2480, 0]);
 
 add({
   parameters: {
@@ -210,12 +292,32 @@ return [{ json: { query: { workflow_session: session, tipo_sim: tipo } } }];`,
   name: 'Preparar Contexto UI Etapa 2',
   type: 'n8n-nodes-base.code',
   typeVersion: 2,
-  position: [-2480, -280],
+  position: [-2200, 160],
 });
 
 add({
   parameters: {
-    jsCode: `const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071830"><title>ETB - Contexto no válido</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(100%,720px);background:#10284a;border:1px solid rgba(29,161,242,.25);border-radius:20px;padding:clamp(24px,5vw,44px);box-shadow:0 28px 70px rgba(0,0,0,.55)}.tag{color:#ff8fa3;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.title{font-size:clamp(26px,6vw,40px);margin:14px 0}.copy{color:rgba(240,246,255,.72);font-size:16px;line-height:1.6}.code{margin-top:20px;padding:14px;border-radius:12px;background:#081a34;color:#38c7ff;overflow-wrap:anywhere}@media(max-width:480px){body{align-items:start;padding-top:28px}.card{padding:24px 18px}}</style></head><body><main class="card"><div class="tag">Etapa 2 · Acceso no válido</div><h1 class="title">No fue posible recuperar la gestión</h1><p class="copy">La sesión no existe, no terminó correctamente la etapa 1 o todavía no está marcada para continuar con el tipo de SIM.</p><div class="code">Verifica el parámetro workflow_session e inicia nuevamente desde la etapa 1.</div></main></body></html>';
+    jsCode: `let query = {};
+try { query = JSON.parse(String($json.handoff_query_json || '{}')); } catch (error) {}
+const workflowSession = String($json.workflow_session || $json.workflow_session_solicitada || query.workflow_session || query.__workflow_session || '').trim();
+query.workflow_session = workflowSession;
+query.__workflow_session = workflowSession;
+const base = String($json.public_base || '').replace(/\\\/$/, '');
+return [{ json: {
+  query,
+  webhookUrl: base ? base + '/webhook/etb-form-parte-2-handoff' : '',
+} }];`,
+  },
+  id: 'etapa2-preparar-handoff-sql',
+  name: 'Preparar Handoff SQL y Continuidad',
+  type: 'n8n-nodes-base.code',
+  typeVersion: 2,
+  position: [-2200, -360],
+});
+
+add({
+  parameters: {
+    jsCode: `const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071830"><title>ETB - Contexto no válido</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(100%,720px);background:#10284a;border:1px solid rgba(29,161,242,.25);border-radius:20px;padding:clamp(24px,5vw,44px);box-shadow:0 28px 70px rgba(0,0,0,.55)}.tag{color:#ff8fa3;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.title{font-size:clamp(26px,6vw,40px);margin:14px 0}.copy{color:rgba(240,246,255,.72);font-size:16px;line-height:1.6}.code{margin-top:20px;padding:14px;border-radius:12px;background:#081a34;color:#38c7ff;overflow-wrap:anywhere}@media(max-width:480px){body{align-items:start;padding-top:28px}.card{padding:24px 18px}}</style></head><body><main class="card"><div class="tag">Acceso no válido</div><h1 class="title">No fue posible recuperar la gestión</h1><p class="copy">La sesión anterior no existe o no terminó correctamente.</p><div class="code">Verifica el parámetro workflow_session e inicia nuevamente desde el comienzo.</div></main></body></html>';
 return [{ json: { html_response: html } }];`,
   },
   id: 'etapa2-contexto-invalido-html',
@@ -232,18 +334,6 @@ invalidRespond.position = [-2200, 500];
 invalidRespond.parameters.options = { responseCode: 400 };
 add(invalidRespond);
 
-const start = makeFormSet('Iniciar Etapa 2', {
-  field: 'inicio_etapa2',
-  title: 'Iniciar diagnóstico de {accent}',
-  titleAccent: 'portabilidad y SIM',
-  question: 'CONTEXTO RECUPERADO DE LA ETAPA 1',
-  subtitle: 'La ruta se determinará con el tipo de SIM guardado. Confirma para comenzar las validaciones.',
-  tag: 'Etapa 2 · Inicio',
-  buttonLabel: 'Iniciar diagnóstico',
-  options: [{ value: 'Si', label: 'Iniciar etapa 2' }],
-  allowBack: false,
-}, [-2200, -280]);
-
 makeIf('IF Tipo SIM eSIM', '={{ $json.query.tipo_sim }}', 'eSIM', [-1360, -280]);
 makeIf('IF Tipo SIM Fisica', '={{ $json.query.tipo_sim }}', 'Fisica', [-1080, 180]);
 
@@ -253,12 +343,12 @@ const multi = makeFormSet('Resolver MultiSIM', {
   titleAccent: 'MultiSIM',
   question: 'COMPONENTE QUE PRESENTA LA FALLA',
   subtitle: 'MultiSIM puede involucrar componentes físicos o virtuales. Selecciona cuál se está diagnosticando.',
-  tag: 'Etapa 2 · MultiSIM',
+  tag: 'Diagnóstico · MultiSIM',
   options: [
     { value: 'Virtual', label: 'Componente virtual / eSIM' },
     { value: 'Fisica', label: 'Componente físico' },
   ],
-  allowBack: true,
+  allowBack: false,
 }, [-800, 650]);
 makeIf('IF Ruta MultiSIM Virtual', '={{ $json.query.ruta_multisim }}', 'Virtual', [320, 650]);
 
@@ -268,12 +358,12 @@ const qr = makeFormSet('Validar QR', {
   titleAccent: 'QR',
   question: '¿EL QR FUE ESCANEADO CORRECTAMENTE?',
   subtitle: 'Confirma si la SIM virtual quedó instalada después de escanear el código QR.',
-  tag: 'Etapa 2 · SIM virtual',
+  tag: 'Diagnóstico · SIM virtual',
   options: [
     { value: 'Si', label: 'Sí, el QR funcionó' },
     { value: 'No', label: 'No fue posible escanearlo' },
   ],
-  allowBack: true,
+  allowBack: false,
 }, [640, -1050]);
 makeIf('IF QR Escaneo OK', '={{ $json.query.qr_escaneo_ok }}', 'Si', [1760, -1050]);
 
@@ -283,7 +373,7 @@ const qrManage = makeFormSet('Gestionar QR', {
   titleAccent: 'QR',
   question: 'ACCIÓN REALIZADA',
   subtitle: 'Intenta nuevamente el escaneo, reenvía el QR o inicia el proceso de reposición cuando corresponda.',
-  tag: 'Etapa 2 · Recuperación QR',
+  tag: 'Diagnóstico · Recuperación QR',
   options: [
     { value: 'Reintentar', label: 'Volver a escanear' },
     { value: 'Reenviado', label: 'QR reenviado' },
@@ -299,7 +389,7 @@ const replacement = makeFormSet('Confirmar Reposicion QR', {
   titleAccent: 'reposición',
   question: 'RESULTADO DE LA GESTIÓN',
   subtitle: 'Registra si el proceso de reposición de la SIM virtual quedó iniciado correctamente.',
-  tag: 'Etapa 2 · Salida QR',
+  tag: 'Diagnóstico · Salida QR',
   buttonLabel: 'Guardar y finalizar',
   options: [
     { value: 'Si', label: 'Reposición iniciada' },
@@ -317,12 +407,12 @@ const ported = makeFormSet('Linea Portada', {
   titleAccent: 'portada',
   question: 'ESTADO DE PORTABILIDAD',
   subtitle: 'Confirma si el número del cliente proviene de otro operador.',
-  tag: 'Etapa 2 · Portabilidad',
+  tag: 'Diagnóstico · Portabilidad',
   options: [
     { value: 'Si', label: 'Sí, es una línea portada' },
     { value: 'No', label: 'No es una línea portada' },
   ],
-  allowBack: true,
+  allowBack: false,
 }, [640, 100]);
 makeIf('IF Linea Portada', '={{ $json.query.linea_portada }}', 'Si', [1760, 100]);
 
@@ -332,7 +422,7 @@ const portability = makeFormSet('Verificar Portacion', {
   titleAccent: 'Portaflow',
   question: '¿LA PORTACIÓN ESTÁ COMPLETADA?',
   subtitle: 'Consulta Portaflow y revisa en SUMA el estado de la orden antes de continuar.',
-  tag: 'Etapa 2 · Portaflow y SUMA',
+  tag: 'Diagnóstico · Portaflow y SUMA',
   options: [
     { value: 'Si', label: 'Sí, portación completada' },
     { value: 'No', label: 'No, continúa pendiente' },
@@ -347,7 +437,7 @@ const nip = makeFormSet('Estado NIP', {
   titleAccent: 'NIP',
   question: 'ESTADO ACTUAL DEL NIP',
   subtitle: 'Indica si el NIP ya fue recibido, continúa dentro del tiempo de espera o superó el plazo operativo.',
-  tag: 'Etapa 2 · Espera NIP',
+  tag: 'Diagnóstico · Espera NIP',
   options: [
     { value: 'Recibido', label: 'NIP recibido' },
     { value: 'Pendiente', label: 'Pendiente dentro del plazo' },
@@ -364,7 +454,7 @@ const waitNip = makeFormSet('Confirmar Espera NIP', {
   titleAccent: 'NIP',
   question: 'GESTIÓN PENDIENTE',
   subtitle: 'Guarda el caso como pendiente para revisarlo nuevamente cuando llegue el NIP.',
-  tag: 'Etapa 2 · Pausa controlada',
+  tag: 'Diagnóstico · Pausa controlada',
   buttonLabel: 'Guardar estado',
   options: [{ value: 'Si', label: 'Dejar el caso pendiente' }],
   allowBack: true,
@@ -379,7 +469,7 @@ const nipManager = makeFormSet('Escalar Gestor NIP', {
   titleAccent: 'NIP',
   question: 'RESULTADO DEL ESCALAMIENTO',
   subtitle: 'El plazo operativo finalizó. Registra el envío del caso al gestor correspondiente.',
-  tag: 'Etapa 2 · Escalamiento NIP',
+  tag: 'Diagnóstico · Escalamiento NIP',
   buttonLabel: 'Guardar y finalizar',
   options: [
     { value: 'Si', label: 'Caso escalado al gestor' },
@@ -397,12 +487,14 @@ const suma = makeFormSet('Validar SUMA', {
   titleAccent: 'SUMA Móvil',
   question: '¿ESTÁ ACTIVO Y CON RECURSOS CARGADOS?',
   subtitle: 'Verifica que la línea se encuentre activa y que todos los recursos estén correctamente cargados.',
-  tag: 'Etapa 2 · Validación SUMA',
+  tag: 'Diagnóstico · Validación SUMA',
   options: [
     { value: 'Si', label: 'Activo y con recursos' },
     { value: 'No', label: 'Inactivo o con recursos incompletos' },
   ],
   allowBack: true,
+  handoffPath: 'etb-form-parte-2-handoff',
+  handoffWhen: { suma_ok: 'Si' },
 }, [3440, 800]);
 makeIf('IF SUMA Activo y Recursos', '={{ $json.query.suma_ok }}', 'Si', [4560, 800]);
 
@@ -412,7 +504,7 @@ const sumaManager = makeFormSet('Escalar Gestor SUMA', {
   titleAccent: 'sincronización',
   question: 'RESULTADO DEL ESCALAMIENTO',
   subtitle: 'La línea no está activa o tiene recursos incompletos. Registra el escalamiento al gestor de sincronización.',
-  tag: 'Etapa 2 · Escalamiento SUMA',
+  tag: 'Diagnóstico · Escalamiento SUMA',
   buttonLabel: 'Guardar y finalizar',
   options: [
     { value: 'Si', label: 'Escalamiento realizado' },
@@ -483,7 +575,7 @@ const handoffUrl = outcome === 'continuar_parte_3' && publicBase
 return [{ json: {
   workflow_session: workflowSession,
   execution_id: String($execution.id || ''),
-  workflow_version: 'etapa2-v2-continuidad-etapa3-20260714',
+  workflow_version: 'etapa2-v3-continuidad-transparente-20260715',
   resultado_etapa_2: outcome,
   next_step: nextStep,
   handoff_url: handoffUrl,
@@ -542,9 +634,12 @@ finalRespond.parameters = {
 add(finalRespond);
 
 chain('Apertura Etapa 2', 'Normalizar Entrada Etapa 2', 'Consultar Contexto Etapa 1 MySQL', 'IF Contexto Etapa 1 Valido');
-connect('IF Contexto Etapa 1 Valido', 0, 'Preparar Contexto UI Etapa 2');
-connect('Preparar Contexto UI Etapa 2', 0, start.form);
-connect(start.wait, 0, 'IF Tipo SIM eSIM');
+chain('Continuar directamente a Diagnostico de Equipo', 'Normalizar Handoff a Diagnostico de Equipo', 'Consultar Contexto Etapa 1 MySQL');
+connect('IF Contexto Etapa 1 Valido', 0, 'IF Entrada por Handoff');
+connect('IF Entrada por Handoff', 0, 'Preparar Handoff SQL y Continuidad');
+connect('Preparar Handoff SQL y Continuidad', 0, 'Preparar Registro Etapa 2 SQL');
+connect('IF Entrada por Handoff', 1, 'Preparar Contexto UI Etapa 2');
+connect('Preparar Contexto UI Etapa 2', 0, 'IF Tipo SIM eSIM');
 connect('IF Contexto Etapa 1 Valido', 1, 'HTML Contexto Invalido');
 connect('HTML Contexto Invalido', 0, 'Responder Contexto Invalido');
 
@@ -553,13 +648,11 @@ connect('IF Tipo SIM eSIM', 1, 'IF Tipo SIM Fisica');
 connect('IF Tipo SIM Fisica', 0, ported.form);
 connect('IF Tipo SIM Fisica', 1, multi.form);
 
-connect(multi.back, 0, start.form);
-connect(multi.back, 1, 'IF Ruta MultiSIM Virtual');
+connect(multi.wait, 0, 'IF Ruta MultiSIM Virtual');
 connect('IF Ruta MultiSIM Virtual', 0, qr.form);
 connect('IF Ruta MultiSIM Virtual', 1, ported.form);
 
-connect(qr.back, 0, start.form);
-connect(qr.back, 1, 'IF QR Escaneo OK');
+connect(qr.wait, 0, 'IF QR Escaneo OK');
 connect('IF QR Escaneo OK', 0, ported.form);
 connect('IF QR Escaneo OK', 1, qrManage.form);
 connect(qrManage.back, 0, qr.form);
@@ -569,8 +662,7 @@ connect('IF QR Requiere Reposicion', 1, qr.form);
 connect(replacement.back, 0, qrManage.form);
 connect(replacement.back, 1, 'Preparar Registro Etapa 2 SQL');
 
-connect(ported.back, 0, start.form);
-connect(ported.back, 1, 'IF Linea Portada');
+connect(ported.wait, 0, 'IF Linea Portada');
 connect('IF Linea Portada', 0, portability.form);
 connect('IF Linea Portada', 1, suma.form);
 connect(portability.back, 0, ported.form);
@@ -601,13 +693,13 @@ connect('IF Continuar Etapa 3', 0, 'Redirigir a Etapa 3');
 connect('IF Continuar Etapa 3', 1, 'Responder Cierre Etapa 2');
 
 const notes = [
-  { id: 'inicio', pos: [-3680, -650], size: [1400, 1500], color: 5, text: '## 01 · Entrada independiente\nWebhook propio `etb-form-parte-2`.\n\nRecibe `workflow_session`, consulta la etapa 1 y rechaza sesiones que no estén listas para continuar.' },
-  { id: 'tipo', pos: [-2240, -650], size: [2600, 1750], color: 6, text: '## 02 · Ruta por tipo de SIM\n- eSIM → validación de QR\n- Física → portabilidad\n- MultiSIM → selección explícita del componente afectado' },
+  { id: 'inicio', pos: [-3680, -800], size: [1700, 1700], color: 5, text: '## 01 · Entradas y continuidad\n`etb-form-parte-2` abre las decisiones sin pantalla intermedia.\n\n`etb-form-parte-2-handoff` recibe la salida positiva de SUMA, guarda y redirige al diagnóstico del equipo sin depender de `webhook-waiting`.' },
+  { id: 'tipo', pos: [-1900, -650], size: [2260, 1750], color: 6, text: '## 02 · Ruta por tipo de SIM\n- eSIM → validación de QR\n- Física → portabilidad\n- MultiSIM → selección explícita del componente afectado' },
   { id: 'qr', pos: [500, -1350], size: [3900, 650], color: 3, text: '## 03 · SIM virtual y QR\nValidar escaneo, reintentar o reenviar. Si no funciona, registrar reposición como salida controlada.' },
   { id: 'portabilidad', pos: [500, -150], size: [2800, 650], color: 4, text: '## 04 · Portabilidad\nLas líneas portadas se verifican en Portaflow y en la orden de SUMA. Las no portadas pasan directamente a SUMA.' },
   { id: 'nip', pos: [3320, -650], size: [2900, 1100], color: 2, text: '## 05 · Estado NIP\nSin plazo inventado: el asesor registra Recibido, Pendiente o Vencido.\n\nPendiente queda con `next_step = revisar_nip`; Vencido se escala al gestor.' },
   { id: 'suma', pos: [3320, 550], size: [2600, 1000], color: 5, text: '## 06 · SUMA Móvil\nValidar línea activa y recursos cargados.\n\nSí → guardar y continuar directamente a etapa 3.\nNo → gestor de sincronización.' },
-  { id: 'sql', pos: [6400, -250], size: [1300, 1000], color: 7, text: '## 07 · Persistencia y continuidad\nUpsert en `CRM.n8n_nsf_etapa2`.\n\n`continuar_parte_3` → Redirect nativo a `etb-form-parte-3`.\nLos demás resultados finalizan la etapa 2.' },
+  { id: 'sql', pos: [6400, -250], size: [1300, 1000], color: 7, text: '## 07 · Persistencia y continuidad\nUpsert en `CRM.n8n_nsf_etapa2`.\n\n`continuar_parte_3` → Redirect nativo a `etb-form-parte-3`.\nLos demás resultados cierran su ruta.' },
 ];
 for (const note of notes) add({
   parameters: { content: note.text, height: note.size[1], width: note.size[0], color: note.color },

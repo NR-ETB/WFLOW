@@ -57,10 +57,11 @@ function traverse(start, graph) {
   return seen;
 }
 
-const reachable = traverse('Apertura Etapa 2', outgoing);
+const roots = ['Apertura Etapa 2', 'Continuar directamente a Diagnostico de Equipo'];
+const reachable = new Set(roots.flatMap((rootName) => [...traverse(rootName, outgoing)]));
 for (const node of functional) {
   if (!reachable.has(node.name)) fail(`Nodo inalcanzable: ${node.name}`);
-  if (node.name !== 'Apertura Etapa 2' && (incoming.get(node.name) || []).length === 0) fail(`Nodo sin entrada: ${node.name}`);
+  if (!roots.includes(node.name) && (incoming.get(node.name) || []).length === 0) fail(`Nodo sin entrada: ${node.name}`);
 }
 
 const terminals = functional.filter((node) => (outgoing.get(node.name) || []).length === 0).map((node) => node.name).sort();
@@ -129,14 +130,11 @@ for (const form of forms) {
   if (wait && (wait.parameters.resume !== 'webhook' || wait.parameters.responseMode !== 'responseNode')) fail(`Espera incorrecta en ${waitName}`);
 }
 
-if (forms.length !== 12) fail(`Cantidad inesperada de formularios: ${forms.length}`);
+if (forms.length !== 11) fail(`Cantidad inesperada de formularios: ${forms.length}`);
 
 const expectedBack = {
-  'IF Volver Resolver MultiSIM': 'Form Iniciar Etapa 2',
-  'IF Volver Validar QR': 'Form Iniciar Etapa 2',
   'IF Volver Gestionar QR': 'Form Validar QR',
   'IF Volver Confirmar Reposicion QR': 'Form Gestionar QR',
-  'IF Volver Linea Portada': 'Form Iniciar Etapa 2',
   'IF Volver Verificar Portacion': 'Form Linea Portada',
   'IF Volver Estado NIP': 'Form Verificar Portacion',
   'IF Volver Confirmar Espera NIP': 'Form Estado NIP',
@@ -156,7 +154,7 @@ function target(name, branch) {
 }
 
 function simulate(scenario) {
-  let current = 'Form Iniciar Etapa 2';
+  let current = 'IF Tipo SIM eSIM';
   let query = { workflow_session: `audit-${scenario.name.replace(/\W+/g, '-')}`, tipo_sim: scenario.tipo_sim };
   const answerIndex = {};
   const visited = [];
@@ -258,7 +256,7 @@ for (const form of forms) {
 const lookup = nodes.get('Consultar Contexto Etapa 1 MySQL');
 if (!lookup?.parameters?.query?.includes("resultado_etapa_1 = 'continuar_parte_2'")) fail('La consulta no valida resultado_etapa_1');
 if (!lookup?.parameters?.query?.includes("next_step = 'parte_2_tipo_sim'")) fail('La consulta no valida next_step');
-if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session ] }}') fail('La consulta de contexto no está parametrizada');
+if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base ] }}') fail('La consulta de contexto no está parametrizada');
 
 const save = nodes.get('Guardar Etapa 2 MySQL');
 const placeholders = save?.parameters?.query?.match(/\$\d+/g) || [];
@@ -269,6 +267,20 @@ if (!save.parameters.query.includes('ON DUPLICATE KEY UPDATE')) fail('El guardad
 
 if (nodes.has('Form Confirmar Servicio Normalizado') || nodes.has('Espera Confirmar Servicio Normalizado')) {
   fail('La etapa 2 conserva el cierre redundante de servicio normalizado');
+}
+if (nodes.has('Form Iniciar Etapa 2') || nodes.has('Espera Iniciar Etapa 2')) {
+  fail('El flujo conserva la pantalla intermedia de inicio de etapa 2');
+}
+for (const [name, cfg] of formConfig) {
+  if (String(cfg.tag || '').toLowerCase().includes('etapa 2')) fail(`${name} muestra el rótulo Etapa 2`);
+}
+const sumaCfg = formConfig.get('Form Validar SUMA');
+if (sumaCfg?.handoffPath !== 'etb-form-parte-2-handoff' || sumaCfg?.handoffWhen?.suma_ok !== 'Si') {
+  fail('Validar SUMA no publica la ruta positiva en el webhook puente');
+}
+const handoffWebhook = nodes.get('Continuar directamente a Diagnostico de Equipo');
+if (handoffWebhook?.parameters?.path !== 'etb-form-parte-2-handoff' || handoffWebhook?.parameters?.responseMode !== 'responseNode') {
+  fail('Webhook puente de continuidad incorrecto');
 }
 const redirect = nodes.get('Redirigir a Etapa 3');
 if (redirect?.parameters?.respondWith !== 'redirect' || !String(redirect?.parameters?.redirectURL || '').includes('handoff_url')) {
