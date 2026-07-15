@@ -26,7 +26,7 @@ cfg.handoffSession = true;
 cfg.finishToStart = false;
 cfg.submitPath = 'etb-form-handoff';
 cfg.allowBack = false;
-cfg.rendererVersion = 'v11.8-handoff-etapa2';
+cfg.rendererVersion = 'v11.9-handoff-responsive';
 code = code.replace(cfgMatch[0], `const cfg = ${JSON.stringify(cfg)};`);
 
 if (!code.includes('let handoffSubmitUrl =')) {
@@ -260,7 +260,7 @@ const prepare = workflow.nodes.find((node) => node.name === 'Preparar Registro S
 if (prepare?.parameters?.jsCode) {
   let prepareCode = prepare.parameters.jsCode.replace(
     /workflow_version: '[^']+',/,
-    "workflow_version: 'v11.8-conexion-etapa2-20260714',",
+    "workflow_version: 'v11.9-responsive-homogeneo-20260715',",
   );
   if (!prepareCode.includes('const workflowSession =')) {
     const marker = "return [{ json: {\n  workflow_session: value('__workflow_session') || String($execution.id || ''),";

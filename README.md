@@ -210,7 +210,9 @@ Los cierres usan un `upsert` por `workflow_session`, por lo que un reintento act
 Los formularios de las tres etapas comparten la misma base visual:
 
 - Diseño vertical de una columna por debajo de 900 px.
-- Soporte desde 320 px, tabletas, Full HD y pantallas de 1800 px o más.
+- Soporte desde 320 px, tabletas, portátiles y monitores Full HD o superiores.
+- Escala homogénea en escritorio: la tarjeta permanece entre 720 y 760 px y no crece por la resolución del monitor.
+- Modo portátil compacto entre 901 px de ancho y 850 px de alto para aprovechar pantallas de poca altura.
 - Modo compacto para orientación horizontal con poca altura.
 - Botones Volver y Continuar con altura uniforme y área táctil suficiente.
 - Safe areas, unidades `svh`/`dvh` y reducción de movimiento según las preferencias del dispositivo.
@@ -220,19 +222,22 @@ Los formularios de las tres etapas comparten la misma base visual:
 Para regenerar y auditar las etapas 2 y 3:
 
 ```powershell
+node .\tools\aplicar_responsive_homogeneo.js
+node .\tools\conectar_etapas.js
 node .\tools\generar_etapa2.js
 node .\tools\generar_etapa3.js
-node .\tools\conectar_etapas.js
+node .\tools\validar_v11.js
 node .\tools\validar_etapa2.js
 node .\tools\validar_etapa3.js
 node .\tools\validar_integracion.js
+node .\tools\generar_preview_responsive.js
 node .\tools\generar_preview_etapa2.js
 node .\tools\generar_preview_etapa3.js
 ```
 
 La validación automática recorre eSIM, SIM física, MultiSIM, configuración, prueba cruzada, reinicio y segundo nivel; verifica contratos, botones Volver, persistencia parametrizada y reglas responsive.
 
-Las vistas generadas se guardan en `preview/etapa2-v1/` y están excluidas de Git. El HTML se repite dentro del JSON porque n8n lo almacena en cada nodo; los cambios mantenibles deben hacerse en el generador y luego regenerar el workflow.
+Las vistas generadas se guardan en `preview/v11.9-forms/`, `preview/etapa2-v1/` y `preview/etapa3-v1/`; están excluidas de Git. El HTML se repite dentro del JSON porque n8n lo almacena en cada nodo. `aplicar_responsive_homogeneo.js` permite actualizar de forma idempotente los tres workflows sin alterar sus conexiones.
 
 ## Consultas operativas
 

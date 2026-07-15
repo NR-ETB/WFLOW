@@ -103,12 +103,13 @@ for (const form of forms) {
       for (const marker of [
         '<!DOCTYPE html>', 'viewport-fit=cover', 'role="radiogroup"', 'role="alert"',
         '@media(max-width:900px)', '@media(max-width:480px)', '@media(max-width:360px)',
-        '@media(min-width:1200px)', '100svh', '100dvh', 'safe-area-inset-top',
+        '@media(min-width:901px) and (max-height:850px)', '100svh', '100dvh', 'safe-area-inset-top',
         'prefers-reduced-motion', 'etb-form-parte-2',
       ]) {
         if (!html.includes(marker)) fail(`${form.name} no contiene ${marker}`);
       }
       if (cfg.finishMode === 'complete' && !html.includes('var finishComplete=true')) fail(`${form.name} no cierra sin redirección`);
+      if (html.includes('max-width:1040px') || html.includes('max-width:1100px')) fail(`${form.name} conserva ampliación excesiva de escritorio`);
       if (cfg.allowBack && !html.includes('name="__back"')) fail(`${form.name} no renderiza Volver`);
       if (!cfg.allowBack && html.includes('name="__back"')) fail(`${form.name} renderiza Volver indebidamente`);
       for (const option of cfg.options) {

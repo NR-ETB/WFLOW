@@ -43,7 +43,7 @@ function patchForm(nodeName, changes) {
   if (!match) throw new Error(`No se encontró cfg en ${nodeName}`);
 
   const cfg = Object.assign(JSON.parse(match[1]), changes, {
-    rendererVersion: 'v11.7',
+    rendererVersion: 'v11.9-responsive-homogeneo',
     startPath: changes.startPath || 'etb-form',
     backButtonLabel: 'Volver',
   });
@@ -122,6 +122,16 @@ function patchForm(nodeName, changes) {
   updated = updated.replace(
     '@media(max-width:640px){.card{padding:22px 16px;border-radius:16px}.radio-group{flex-direction:column}.radio{width:100%}.actions{grid-template-columns:1fr}.btn{height:54px;padding:0 14px;font-size:14px}}',
     '@media(max-width:900px){.card{padding:clamp(20px,5vw,32px)}.radio-group{grid-template-columns:1fr}.actions{grid-template-columns:1fr;gap:10px}.btn{width:100%;height:56px;padding:0 16px;font-size:15px}}@media(max-width:480px){body{align-items:flex-start}.page{justify-content:center;padding-block:4px}.card{padding:22px 16px;border-radius:16px}.tag{font-size:10px;padding:5px 11px;margin-bottom:14px}.card-title{font-size:clamp(23px,7.4vw,30px)}.card-sub{font-size:14px}.radio label{min-height:56px}.actions{grid-template-columns:1fr}.btn{width:100%;height:54px}.footer{font-size:11px}}@media(max-width:360px){body{padding:8px}.card{padding:19px 13px}.radio label{padding:11px 10px;font-size:13px}.btn{font-size:13px}.back-icon{width:22px;height:22px;flex-basis:22px}}@media(max-height:620px) and (orientation:landscape){body{align-items:flex-start}.page{justify-content:flex-start}.card{max-width:900px;padding:18px 24px}.tag{margin-bottom:10px}.card-title{font-size:22px;margin-bottom:6px}.card-sub{margin-bottom:12px}.label{margin-bottom:8px}.radio-group{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:12px}.radio label{min-height:46px;padding:8px 12px}.actions{grid-template-columns:minmax(150px,.65fr) minmax(190px,1fr)}.btn{height:48px}.footer{padding:2px 0}}@media(min-width:1200px){.card{width:min(100%,1040px);max-width:1040px;padding:48px 52px}.tag{font-size:12px;padding:7px 16px;margin-bottom:20px}.card-title{font-size:40px;margin-bottom:14px}.card-sub{font-size:17px;margin-bottom:28px}.label{font-size:12px;margin-bottom:14px}.radio-group{gap:14px;margin-bottom:28px}.radio label{min-height:64px;font-size:16px}.actions{gap:16px}.btn{height:64px;font-size:18px}.back-icon{width:28px;height:28px;flex-basis:28px;font-size:17px}.footer{font-size:13px}}@media(min-width:1800px) and (min-height:1000px){.card{width:min(100%,1100px);max-width:1100px;padding:52px 58px}.card-title{font-size:43px}.card-sub{font-size:18px}.radio label{min-height:66px}.btn{height:66px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}.btn:hover,.radio label:hover{transform:none}}@supports(height:100dvh){body{min-height:100dvh}.page{min-height:calc(100dvh - 24px)}}',
+  );
+  // Escala homogénea para portátiles y monitores: el ancho del viewport ya no
+  // agranda la tarjeta. La altura disponible activa un modo compacto.
+  updated = updated.replace(
+    '@media(min-width:1200px){.card{width:min(100%,1040px);max-width:1040px;padding:48px 52px}.tag{font-size:12px;padding:7px 16px;margin-bottom:20px}.card-title{font-size:40px;margin-bottom:14px}.card-sub{font-size:17px;margin-bottom:28px}.label{font-size:12px;margin-bottom:14px}.radio-group{gap:14px;margin-bottom:28px}.radio label{min-height:64px;font-size:16px}.actions{gap:16px}.btn{height:64px;font-size:18px}.back-icon{width:28px;height:28px;flex-basis:28px;font-size:17px}.footer{font-size:13px}}@media(min-width:1800px) and (min-height:1000px){.card{width:min(100%,1100px);max-width:1100px;padding:52px 58px}.card-title{font-size:43px}.card-sub{font-size:18px}.radio label{min-height:66px}.btn{height:66px}}',
+    '@media(min-width:901px) and (max-height:850px){body{padding:10px}.page{gap:8px;min-height:calc(100svh - 20px)}.card{width:min(100%,720px);max-width:720px;padding:24px 28px;border-radius:18px}.tag{font-size:10px;padding:5px 12px;margin-bottom:10px}.card-title{font-size:28px;margin-bottom:7px}.card-sub{font-size:14px;margin-bottom:14px;line-height:1.45}.label{font-size:10px;margin-bottom:8px}.radio-group{gap:8px;margin-bottom:16px}.radio label{min-height:48px;padding:9px 12px;font-size:13px}.actions{gap:10px}.btn{height:50px;font-size:15px}.back-icon{width:22px;height:22px;flex-basis:22px;font-size:14px}.footer{font-size:11px;padding:3px 0}}',
+  );
+  updated = updated.replace(
+    '@media(max-height:620px) and (orientation:landscape){body{align-items:flex-start}.page{justify-content:flex-start}.card{max-width:900px;',
+    '@media(max-height:620px) and (orientation:landscape){body{align-items:flex-start}.page{justify-content:flex-start}.card{max-width:720px;',
   );
   updated = updated.replace(
     '.err-banner{display:none;',
@@ -477,7 +487,7 @@ const handoffUrl = publicBase
 return [{ json: {
   workflow_session: workflowSession,
   execution_id: String($execution.id || ''),
-  workflow_version: 'v11.8-conexion-etapa2-20260714',
+  workflow_version: 'v11.9-responsive-homogeneo-20260715',
   resultado_etapa_1: outcome,
   next_step: nextStep,
   handoff_url: handoffUrl,
@@ -797,7 +807,7 @@ workflow.connections = connections;
 
 workflow.name = 'Ningun Servicio Funciona - 1';
 workflow.active = false;
-workflow.versionId = 'v11.7-auditada-crm-responsive-sql-20260710';
+workflow.versionId = 'v11.9-responsive-homogeneo-20260715';
 workflow.id = 'NingunServicioFuncionaV117AuditadaCRMResponsiveSQL';
 workflow.meta = Object.assign({}, workflow.meta, {
   templateCredsSetupCompleted: false,

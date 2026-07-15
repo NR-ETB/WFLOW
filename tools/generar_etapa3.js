@@ -25,7 +25,7 @@ const workflow = {
   connections: {},
   active: false,
   settings: { executionOrder: 'v1' },
-  versionId: 'etapa3-v2-diagnostico-continuo-20260715',
+  versionId: 'etapa3-v3-responsive-homogeneo-20260715',
   meta: { templateCredsSetupCompleted: false },
   id: 'NingunServicioFuncionaEtapa3V1',
   tags: [],
@@ -416,7 +416,7 @@ const answers = {
 return [{ json: {
   workflow_session: raw('workflow_session') || '',
   execution_id: String($execution.id || ''),
-  workflow_version: 'etapa3-v2-diagnostico-continuo-20260715',
+  workflow_version: 'etapa3-v3-responsive-homogeneo-20260715',
   resultado_etapa_3: outcome,
   next_step: raw('__next_step') || 'fin_flujo',
   ...answers,
