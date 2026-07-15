@@ -16,7 +16,7 @@ flowchart LR
 | Etapa | Alcance | Webhook de producción | Persistencia |
 | --- | --- | --- | --- |
 | 1 | Estado de línea, pagos, GESTFAC, ICCID, IMEI, bloqueo, documentación y tipo de SIM | `/webhook/etb-form` + puente interno `/webhook/etb-form-handoff` | `CRM.n8n_nsf_respuestas` |
-| 2 | eSIM/SIM física/MultiSIM, QR, portabilidad, NIP y recursos en SUMA Móvil | `/webhook/etb-form-parte-2` + puente interno `/webhook/etb-form-parte-2-handoff` | `CRM.n8n_nsf_etapa2` |
+| 2 | eSIM/SIM física/MultiSIM, QR, portabilidad, NIP y recursos en SUMA Móvil | `/webhook/etb-form-parte-2` + puente interno `/webhook/etb-form-parte-2-continuar` | `CRM.n8n_nsf_etapa2` |
 | 3 | Configuración del equipo, prueba cruzada de SIM, reinicio, PQR y segundo nivel | `/webhook/etb-form-parte-3` | `CRM.n8n_nsf_etapa3` |
 
 ## Archivos principales
@@ -98,7 +98,7 @@ La prueba más estable se realiza con los tres workflows activos y sus URL de pr
 1. Ejecuta los scripts `10_etapa2_workbench_setup.sql` y `20_etapa3_workbench_setup.sql`.
 2. Importa `Ningun Servicio Funciona - 1.json`, `Ningun Servicio Funciona - 2.json` y `Ningun Servicio Funciona - 3.json`.
 3. Asigna exactamente la misma credencial `CRM` a los cinco nodos MySQL involucrados: `Guardar Respuestas MySQL`, `Consultar Contexto Etapa 1 MySQL`, `Guardar Etapa 2 MySQL`, `Consultar Contexto Etapa 2 MySQL` y `Guardar Etapa 3 MySQL`.
-4. Guarda y activa/publica los tres workflows. La etapa 1 registra `/webhook/etb-form` y `/webhook/etb-form-handoff`; la etapa 2 registra `/webhook/etb-form-parte-2` y `/webhook/etb-form-parte-2-handoff`.
+4. Guarda y activa/publica los tres workflows. La etapa 1 registra `/webhook/etb-form` y `/webhook/etb-form-handoff`; la etapa 2 registra `/webhook/etb-form-parte-2` y `/webhook/etb-form-parte-2-continuar`.
 5. Abre únicamente `/webhook/etb-form` y completa la etapa 1 hasta seleccionar el tipo de SIM.
 6. Al guardar, el navegador debe abrir `/webhook/etb-form-parte-2?workflow_session=...` automáticamente.
 7. En SUMA selecciona “Activo y con recursos”; no debe aparecer una pantalla de cierre de etapa 2.
@@ -127,7 +127,7 @@ La transición interna esperada después de confirmar SUMA es:
 
 ```text
 Form Validar SUMA (Activo y con recursos)
-  → Continuar directamente a Diagnostico de Equipo (Webhook etb-form-parte-2-handoff)
+  → Continuar directamente a Diagnostico de Equipo (Webhook etb-form-parte-2-continuar)
   → Consultar Contexto Etapa 1 MySQL
   → Preparar Registro Etapa 2 SQL
   → Guardar Etapa 2 MySQL

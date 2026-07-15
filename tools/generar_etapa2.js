@@ -206,10 +206,10 @@ add(webhook);
 const handoffWebhook = clone(sourceNode('Apertura del Flujo'));
 handoffWebhook.id = 'etapa2-webhook-handoff-etapa3';
 handoffWebhook.name = 'Continuar directamente a Diagnostico de Equipo';
-handoffWebhook.webhookId = 'etb-form-parte-2-handoff';
+handoffWebhook.webhookId = 'etb-form-parte-2-continuar';
 handoffWebhook.position = [-3600, -520];
 handoffWebhook.parameters.httpMethod = 'GET';
-handoffWebhook.parameters.path = 'etb-form-parte-2-handoff';
+handoffWebhook.parameters.path = 'etb-form-parte-2-continuar';
 handoffWebhook.parameters.responseMode = 'responseNode';
 handoffWebhook.parameters.options = { allowedOrigins: '*' };
 add(handoffWebhook);
@@ -276,6 +276,7 @@ lookup.parameters = {
 };
 lookup.notesInFlow = true;
 lookup.notes = 'Selecciona la credencial MySQL CRM. La sesión puede venir de la versión actual o de una gestión anterior; debe existir y tener tipo_sim. contrato_canonico permite auditar si también conserva los marcadores actuales.';
+lookup.onError = 'continueErrorOutput';
 delete lookup.credentials;
 add(lookup);
 
@@ -305,7 +306,7 @@ query.__workflow_session = workflowSession;
 const base = String($json.public_base || '').replace(/\\\/$/, '');
 return [{ json: {
   query,
-  webhookUrl: base ? base + '/webhook/etb-form-parte-2-handoff' : '',
+  webhookUrl: base ? base + '/webhook/etb-form-parte-2-continuar' : '',
 } }];`,
   },
   id: 'etapa2-preparar-handoff-sql',
@@ -511,7 +512,7 @@ const suma = makeFormSet('Validar SUMA', {
     { value: 'No', label: 'Inactivo o con recursos incompletos' },
   ],
   allowBack: true,
-  handoffPath: 'etb-form-parte-2-handoff',
+  handoffPath: 'etb-form-parte-2-continuar',
   handoffWhen: { suma_ok: 'Si' },
 }, [3440, 800]);
 makeIf('IF SUMA Activo y Recursos', '={{ $json.query.suma_ok }}', 'Si', [4560, 800]);
@@ -624,6 +625,7 @@ save.parameters = {
 };
 save.notesInFlow = true;
 save.notes = 'Selecciona la misma credencial MySQL CRM usada en la etapa 1. Base: CRM. Tabla: n8n_nsf_etapa2.';
+save.onError = 'continueErrorOutput';
 delete save.credentials;
 add(save);
 
@@ -650,6 +652,33 @@ finalRespond.parameters = {
   options: { responseCode: 200 },
 };
 add(finalRespond);
+
+add({
+  parameters: {
+    jsCode: `const item = ($json && $json.item) ? $json.item : {};
+const session = String(item.workflow_session || item.workflow_session_solicitada || 'no disponible');
+const phase = item.resultado_etapa_2 ? 'guardar la etapa 2' : 'consultar el contexto de la etapa 1';
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071830"><title>ETB - Error de persistencia</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(100%,620px);background:#10284a;border:1px solid rgba(255,92,122,.36);border-radius:20px;padding:32px}.tag{color:#ff8fa3;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.title{font-size:clamp(26px,6vw,36px);margin:14px 0}.copy{color:rgba(240,246,255,.75);font-size:15px;line-height:1.55}.details{margin-top:18px;padding:13px;border-radius:12px;background:#081a34;color:#38c7ff;overflow-wrap:anywhere}.hint{margin-top:16px;color:rgba(240,246,255,.58);font-size:13px;line-height:1.5}@media(max-width:480px){body{align-items:start;padding-top:28px}.card{padding:24px 18px}}</style></head><body><main class="card"><div class="tag">Error de persistencia</div><h1 class="title">No fue posible continuar</h1><p class="copy">MySQL presentó un error al ' + esc(phase) + '.</p><div class="details"><b>Sesión:</b> ' + esc(session) + '</div><p class="hint">Verifica la credencial del nodo y que exista la tabla CRM.n8n_nsf_etapa2. Consulta la ejecución en n8n para ver el detalle técnico.</p></main></body></html>';
+return [{ json: { html_response: html } }];`,
+  },
+  id: 'etapa2-html-error-persistencia',
+  name: 'HTML Error Persistencia Etapa 2',
+  type: 'n8n-nodes-base.code',
+  typeVersion: 2,
+  position: [7060, 650],
+});
+
+const persistenceErrorRespond = clone(respondTemplate);
+persistenceErrorRespond.id = 'etapa2-responder-error-persistencia';
+persistenceErrorRespond.name = 'Responder Error Persistencia Etapa 2';
+persistenceErrorRespond.position = [7340, 650];
+persistenceErrorRespond.parameters = {
+  respondWith: 'text',
+  responseBody: '={{ $json.html_response }}',
+  options: { responseCode: 500 },
+};
+add(persistenceErrorRespond);
 
 chain('Apertura Etapa 2', 'Normalizar Entrada Etapa 2', 'Consultar Contexto Etapa 1 MySQL', 'IF Contexto Etapa 1 Valido');
 chain('Continuar directamente a Diagnostico de Equipo', 'Normalizar Handoff a Diagnostico de Equipo', 'Consultar Contexto Etapa 1 MySQL');
@@ -707,11 +736,14 @@ connect(sumaManager.back, 0, suma.form);
 connect(sumaManager.back, 1, 'Preparar Registro Etapa 2 SQL');
 
 chain('Preparar Registro Etapa 2 SQL', 'Guardar Etapa 2 MySQL', 'IF Continuar Etapa 3');
+connect('Consultar Contexto Etapa 1 MySQL', 1, 'HTML Error Persistencia Etapa 2');
+connect('Guardar Etapa 2 MySQL', 1, 'HTML Error Persistencia Etapa 2');
+connect('HTML Error Persistencia Etapa 2', 0, 'Responder Error Persistencia Etapa 2');
 connect('IF Continuar Etapa 3', 0, 'Redirigir a Etapa 3');
 connect('IF Continuar Etapa 3', 1, 'Responder Cierre Etapa 2');
 
 const notes = [
-  { id: 'inicio', pos: [-3680, -800], size: [1700, 1700], color: 5, text: '## 01 · Entradas y continuidad\n`etb-form-parte-2` abre las decisiones sin pantalla intermedia.\n\n`etb-form-parte-2-handoff` recibe la salida positiva de SUMA, guarda y redirige al diagnóstico del equipo sin depender de `webhook-waiting`.' },
+  { id: 'inicio', pos: [-3680, -800], size: [1700, 1700], color: 5, text: '## 01 · Entradas y continuidad\n`etb-form-parte-2` abre las decisiones sin pantalla intermedia.\n\n`etb-form-parte-2-continuar` recibe la salida positiva de SUMA, guarda y redirige al diagnóstico del equipo sin depender de `webhook-waiting`.' },
   { id: 'tipo', pos: [-1900, -650], size: [2260, 1750], color: 6, text: '## 02 · Ruta por tipo de SIM\n- eSIM → validación de QR\n- Física → portabilidad\n- MultiSIM → selección explícita del componente afectado' },
   { id: 'qr', pos: [500, -1350], size: [3900, 650], color: 3, text: '## 03 · SIM virtual y QR\nValidar escaneo, reintentar o reenviar. Si no funciona, registrar reposición como salida controlada.' },
   { id: 'portabilidad', pos: [500, -150], size: [2800, 650], color: 4, text: '## 04 · Portabilidad\nLas líneas portadas se verifican en Portaflow y en la orden de SUMA. Las no portadas pasan directamente a SUMA.' },

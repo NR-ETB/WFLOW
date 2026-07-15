@@ -65,14 +65,14 @@ for (const node of functional) {
 }
 
 const terminals = functional.filter((node) => (outgoing.get(node.name) || []).length === 0).map((node) => node.name).sort();
-const expectedTerminals = ['Redirigir a Etapa 3', 'Responder Cierre Etapa 2', 'Responder Contexto Invalido'].sort();
+const expectedTerminals = ['Redirigir a Etapa 3', 'Responder Cierre Etapa 2', 'Responder Contexto Invalido', 'Responder Error Persistencia Etapa 2'].sort();
 if (JSON.stringify(terminals) !== JSON.stringify(expectedTerminals)) fail(`Terminales inesperados: ${terminals.join(', ')}`);
 
 const reverse = new Map([...nodes.keys()].map((name) => [name, []]));
 for (const [target, edges] of incoming) reverse.set(target, edges.map((edge) => ({ node: edge.node })));
 const reachesSave = traverse('Responder Cierre Etapa 2', reverse);
 for (const node of functional) {
-  if (!reachesSave.has(node.name) && !['HTML Contexto Invalido', 'Responder Contexto Invalido', 'Redirigir a Etapa 3'].includes(node.name)) {
+  if (!reachesSave.has(node.name) && !['HTML Contexto Invalido', 'Responder Contexto Invalido', 'HTML Error Persistencia Etapa 2', 'Responder Error Persistencia Etapa 2', 'Redirigir a Etapa 3'].includes(node.name)) {
     fail(`Nodo sin camino al guardado: ${node.name}`);
   }
 }
@@ -290,6 +290,13 @@ const replacements = save?.parameters?.options?.queryReplacement?.match(/\$json\
 if (maxPlaceholder !== 19 || replacements.length !== 19) fail(`Contrato MySQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
 if (!save?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_etapa2')) fail('El guardado no fija CRM.n8n_nsf_etapa2');
 if (!save.parameters.query.includes('ON DUPLICATE KEY UPDATE')) fail('El guardado no es idempotente');
+if (lookup?.onError !== 'continueErrorOutput' || save?.onError !== 'continueErrorOutput') fail('Los nodos MySQL no exponen una salida controlada de error');
+const persistenceErrorHtml = nodes.get('HTML Error Persistencia Etapa 2');
+const persistenceErrorRespond = nodes.get('Responder Error Persistencia Etapa 2');
+if (!persistenceErrorHtml?.parameters?.jsCode?.includes('CRM.n8n_nsf_etapa2')) fail('Falta el diagnóstico de persistencia de etapa 2');
+if (persistenceErrorRespond?.parameters?.options?.responseCode !== 500) fail('La respuesta de error MySQL no usa HTTP 500');
+if (!outgoing.get('Consultar Contexto Etapa 1 MySQL')?.some((edge) => edge.branch === 1 && edge.node === 'HTML Error Persistencia Etapa 2')) fail('La consulta MySQL no conecta su salida de error');
+if (!outgoing.get('Guardar Etapa 2 MySQL')?.some((edge) => edge.branch === 1 && edge.node === 'HTML Error Persistencia Etapa 2')) fail('El guardado MySQL no conecta su salida de error');
 
 if (nodes.has('Form Confirmar Servicio Normalizado') || nodes.has('Espera Confirmar Servicio Normalizado')) {
   fail('La etapa 2 conserva el cierre redundante de servicio normalizado');
@@ -301,11 +308,11 @@ for (const [name, cfg] of formConfig) {
   if (String(cfg.tag || '').toLowerCase().includes('etapa 2')) fail(`${name} muestra el rótulo Etapa 2`);
 }
 const sumaCfg = formConfig.get('Form Validar SUMA');
-if (sumaCfg?.handoffPath !== 'etb-form-parte-2-handoff' || sumaCfg?.handoffWhen?.suma_ok !== 'Si') {
+if (sumaCfg?.handoffPath !== 'etb-form-parte-2-continuar' || sumaCfg?.handoffWhen?.suma_ok !== 'Si') {
   fail('Validar SUMA no publica la ruta positiva en el webhook puente');
 }
 const handoffWebhook = nodes.get('Continuar directamente a Diagnostico de Equipo');
-if (handoffWebhook?.parameters?.path !== 'etb-form-parte-2-handoff' || handoffWebhook?.parameters?.responseMode !== 'responseNode') {
+if (handoffWebhook?.parameters?.path !== 'etb-form-parte-2-continuar' || handoffWebhook?.parameters?.responseMode !== 'responseNode') {
   fail('Webhook puente de continuidad incorrecto');
 }
 const redirect = nodes.get('Redirigir a Etapa 3');

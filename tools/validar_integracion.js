@@ -64,7 +64,7 @@ if (handoffWebhook?.parameters?.httpMethod !== 'GET' ||
 }
 if (webhook2?.parameters?.path !== 'etb-form-parte-2') fail('Webhook de etapa 2 inesperado.');
 if (handoffWebhook2?.parameters?.httpMethod !== 'GET' ||
-    handoffWebhook2?.parameters?.path !== 'etb-form-parte-2-handoff' ||
+    handoffWebhook2?.parameters?.path !== 'etb-form-parte-2-continuar' ||
     handoffWebhook2?.parameters?.responseMode !== 'responseNode') {
   fail('Webhook puente de etapa 2 inesperado.');
 }
@@ -76,7 +76,7 @@ if (triggerIds.some((id) => !id) || new Set(triggerIds).size !== triggerIds.leng
 if (webhook1?.parameters?.path === 'etb-form' &&
     handoffWebhook?.parameters?.path === 'etb-form-handoff' &&
     webhook2?.parameters?.path === 'etb-form-parte-2' &&
-    handoffWebhook2?.parameters?.path === 'etb-form-parte-2-handoff' &&
+    handoffWebhook2?.parameters?.path === 'etb-form-parte-2-continuar' &&
     webhook3?.parameters?.path === 'etb-form-parte-3') {
   ok('Cinco webhooks independientes y sin colisión');
 }
@@ -213,6 +213,13 @@ if (!reaches(stage2, 'Guardar Etapa 2 MySQL', 'Responder Cierre Etapa 2')) {
 } else {
   ok('La etapa 2 responde al navegador después de persistir el cierre');
 }
+if (nodes2.get('Consultar Contexto Etapa 1 MySQL')?.onError !== 'continueErrorOutput' ||
+    nodes2.get('Guardar Etapa 2 MySQL')?.onError !== 'continueErrorOutput' ||
+    !reaches(stage2, 'HTML Error Persistencia Etapa 2', 'Responder Error Persistencia Etapa 2')) {
+  fail('La etapa 2 no responde de forma controlada ante errores MySQL.');
+} else {
+  ok('Los errores MySQL de etapa 2 responden con un diagnóstico visible');
+}
 
 if (nodes2.has('Form Confirmar Servicio Normalizado') || nodes2.has('Espera Confirmar Servicio Normalizado')) {
   fail('La etapa 2 conserva la pantalla redundante de servicio normalizado.');
@@ -237,7 +244,7 @@ const redirect2 = nodes2.get('Redirigir a Etapa 3');
 const sumaForm = nodes2.get('Form Validar SUMA');
 const sumaCfgMatch = String(sumaForm?.parameters?.jsCode || '').match(/^const cfg = (\{.*\});$/m);
 const sumaCfg = sumaCfgMatch ? JSON.parse(sumaCfgMatch[1]) : {};
-if (sumaCfg.handoffPath !== 'etb-form-parte-2-handoff' || sumaCfg.handoffWhen?.suma_ok !== 'Si') {
+if (sumaCfg.handoffPath !== 'etb-form-parte-2-continuar' || sumaCfg.handoffWhen?.suma_ok !== 'Si') {
   fail('El formulario SUMA no entrega su respuesta positiva al webhook puente.');
 }
 try {
@@ -246,7 +253,7 @@ try {
     { id: 'suma-ui', mode: 'production', resumeUrl: 'https://n8n.example.test/webhook-waiting/434' },
     { query: { workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica' } },
   )?.[0]?.json?.html_response || '';
-  if (!html.includes('https://n8n.example.test/webhook/etb-form-parte-2-handoff')) {
+  if (!html.includes('https://n8n.example.test/webhook/etb-form-parte-2-continuar')) {
     fail('El frontend SUMA no construye la URL absoluta del webhook puente.');
   }
   if (!html.includes('shouldUseHandoff(data)')) {
