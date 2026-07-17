@@ -243,7 +243,11 @@ for (const scenario of scenarios) {
     if (prepared.resultado_etapa_2 !== scenario.outcome) fail(`${scenario.name}: resultado ${prepared.resultado_etapa_2}`);
     if (prepared.next_step !== scenario.next) fail(`${scenario.name}: next_step ${prepared.next_step}`);
     if (prepared.tipo_sim !== scenario.tipo_sim) fail(`${scenario.name}: perdió tipo_sim`);
+    if (prepared.codigo_flujo !== 'ningunServicioFunciona' || prepared.codigo_etapa !== 'diagnosticoSim' || prepared.numero_etapa !== 2) {
+      fail(`${scenario.name}: contrato del log general incorrecto`);
+    }
     JSON.parse(prepared.respuestas_json);
+    JSON.parse(prepared.contexto_json);
     pass(`${scenario.name}: ${simulation.visited.length} nodos → ${scenario.outcome}`);
   } catch (error) {
     fail(`${scenario.name}: ${error.message}`);
@@ -255,16 +259,17 @@ for (const form of forms) {
 }
 
 const lookup = nodes.get('Consultar Contexto Etapa 1 MySQL');
-if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $5')) fail('La consulta no separa el parámetro del filtro workflow_session');
+if (!lookup?.parameters?.query?.includes('WHERE workflowSession = $5')) fail('La consulta no separa el parámetro del filtro workflowSession');
 if (JSON.stringify(lookup?.parameters?.query?.match(/\$\d+/g)) !== JSON.stringify(['$1', '$2', '$3', '$4', '$5'])) {
   fail('Los parámetros de contexto no están en orden posicional seguro para MySQL');
 }
-if (!lookup?.parameters?.query?.includes('FROM CRM.n8n_nsf_respuestas')) fail('La consulta no fija CRM.n8n_nsf_respuestas');
+if (!lookup?.parameters?.query?.includes('FROM CRM.GestionesFlujosLog')) fail('La consulta no fija CRM.GestionesFlujosLog');
 if (!lookup?.parameters?.query?.includes('DATABASE() AS esquema_credencial')) fail('La consulta no informa el esquema de la credencial');
 if (!lookup?.parameters?.query?.includes('COUNT(*) AS coincidencias')) fail('La consulta no informa coincidencias');
-if (!lookup?.parameters?.query?.includes("MAX(resultado_etapa_1) = 'continuar_parte_2'")) fail('La consulta no audita resultado_etapa_1');
-if (!lookup?.parameters?.query?.includes("MAX(next_step) = 'parte_2_tipo_sim'")) fail('La consulta no audita next_step');
-if (!lookup?.parameters?.query?.includes("MAX(tipo_sim) IS NOT NULL")) fail('La consulta no exige tipo_sim');
+if (!lookup?.parameters?.query?.includes("MAX(resultado) = 'continuar_parte_2'")) fail('La consulta no audita el resultado de etapa 1');
+if (!lookup?.parameters?.query?.includes("MAX(nextStep) = 'parte_2_tipo_sim'")) fail('La consulta no audita nextStep');
+if (!lookup?.parameters?.query?.includes("JSON_EXTRACT(respuestasJson, '$.tipo_sim')")) fail('La consulta no recupera tipo_sim desde respuestasJson');
+if (!lookup?.parameters?.query?.includes("codigoEtapa = 'validacionServicio'")) fail('La consulta no limita la etapa 1 del flujo');
 if (!lookup?.parameters?.query?.includes('AS contrato_canonico')) fail('La consulta no expone contrato_canonico');
 if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base, $json.workflow_session ] }}') fail('La consulta de contexto no está parametrizada');
 const normalizeHandoff = nodes.get('Normalizar Handoff a Diagnostico de Equipo');
@@ -280,7 +285,7 @@ try {
     coincidencias: 0,
     tipo_sim: null,
   })?.[0]?.json?.html_response || '';
-  for (const marker of ['sesion-diagnostico', 'CRM_QA', 'CRM.n8n_nsf_respuestas', 'Filas encontradas:']) {
+  for (const marker of ['sesion-diagnostico', 'CRM_QA', 'CRM.GestionesFlujosLog', 'Filas encontradas:']) {
     if (!invalidHtml.includes(marker)) fail(`Diagnóstico de acceso incompleto: ${marker}`);
   }
 } catch (error) {
@@ -291,13 +296,13 @@ const save = nodes.get('Guardar Etapa 2 MySQL');
 const placeholders = save?.parameters?.query?.match(/\$\d+/g) || [];
 const maxPlaceholder = Math.max(...placeholders.map((value) => Number(value.slice(1))));
 const replacements = save?.parameters?.options?.queryReplacement?.match(/\$json\.[A-Za-z0-9_]+/g) || [];
-if (maxPlaceholder !== 19 || replacements.length !== 19) fail(`Contrato MySQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
-if (!save?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_etapa2')) fail('El guardado no fija CRM.n8n_nsf_etapa2');
+if (maxPlaceholder !== 14 || replacements.length !== 14) fail(`Contrato MySQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
+if (!save?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) fail('El guardado no fija CRM.GestionesFlujosLog');
 if (!save.parameters.query.includes('ON DUPLICATE KEY UPDATE')) fail('El guardado no es idempotente');
 if (lookup?.onError !== 'continueErrorOutput' || save?.onError !== 'continueErrorOutput') fail('Los nodos MySQL no exponen una salida controlada de error');
 const persistenceErrorHtml = nodes.get('HTML Error Persistencia Etapa 2');
 const persistenceErrorRespond = nodes.get('Responder Error Persistencia Etapa 2');
-if (!persistenceErrorHtml?.parameters?.jsCode?.includes('CRM.n8n_nsf_etapa2')) fail('Falta el diagnóstico de persistencia de etapa 2');
+if (!persistenceErrorHtml?.parameters?.jsCode?.includes('CRM.GestionesFlujosLog')) fail('Falta el diagnóstico del log general en etapa 2');
 if (persistenceErrorRespond?.parameters?.options?.responseCode !== 500) fail('La respuesta de error MySQL no usa HTTP 500');
 if (!outgoing.get('Consultar Contexto Etapa 1 MySQL')?.some((edge) => edge.branch === 1 && edge.node === 'HTML Error Persistencia Etapa 2')) fail('La consulta MySQL no conecta su salida de error');
 if (!outgoing.get('Guardar Etapa 2 MySQL')?.some((edge) => edge.branch === 1 && edge.node === 'HTML Error Persistencia Etapa 2')) fail('El guardado MySQL no conecta su salida de error');
@@ -327,11 +332,12 @@ if (!prepare?.parameters?.jsCode?.includes("'/webhook/etb-form-parte-3?workflow_
   fail('Preparar Registro Etapa 2 SQL no construye la URL de etapa 3');
 }
 
-const ddl = fs.readFileSync(path.join(root, 'database', '10_etapa2_workbench_setup.sql'), 'utf8');
+const ddl = fs.readFileSync(path.join(root, 'database', '00_GestionesFlujosLog_Workbench.sql'), 'utf8');
 for (const marker of [
-  'USE CRM;', 'CREATE TABLE IF NOT EXISTS n8n_nsf_etapa2',
-  'UNIQUE KEY uq_nsf_etapa2_workflow_session', 'FOREIGN KEY (workflow_session)',
-  'REFERENCES n8n_nsf_respuestas (workflow_session)', 'CREATE OR REPLACE VIEW vw_n8n_nsf_etapa2',
+  'USE CRM;', 'RENAME TABLE CRM.n8n_nsf_respuestas TO CRM.GestionesFlujosLog',
+  'ADD UNIQUE KEY uqGestionesFlujosEtapaIntento',
+  'CREATE OR REPLACE VIEW CRM.VwNsfTrazabilidad',
+  'CREATE OR REPLACE VIEW CRM.VwNsfResumen',
 ]) {
   if (!ddl.includes(marker)) fail(`DDL incompleto: ${marker}`);
 }

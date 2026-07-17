@@ -74,8 +74,9 @@ if (!mysql || mysql.type !== 'n8n-nodes-base.mySql') errors.push('Falta el nodo 
 else {
   const placeholders = mysql.parameters.query.match(/\$\d+/g) || [];
   const maxPlaceholder = Math.max(...placeholders.map((value) => Number(value.slice(1))));
-  if (maxPlaceholder !== 18) errors.push(`Cantidad de parámetros SQL inesperada: ${maxPlaceholder}`);
-  if (!mysql.parameters.query.includes('INSERT INTO CRM.n8n_nsf_respuestas')) errors.push('El guardado no fija el esquema CRM');
+  if (maxPlaceholder !== 14) errors.push(`Cantidad de parámetros SQL inesperada: ${maxPlaceholder}`);
+  if (!mysql.parameters.query.includes('INSERT INTO CRM.GestionesFlujosLog')) errors.push('El guardado no fija el log general del esquema CRM');
+  if (!mysql.parameters.query.includes('(workflowSession, codigoFlujo, nombreFlujo, codigoEtapa')) errors.push('El guardado no usa el contrato general de flujo/etapa');
   if (!mysql.parameters.query.includes('ON DUPLICATE KEY UPDATE')) errors.push('El INSERT no es idempotente');
   if (!mysql.parameters.options.queryReplacement.startsWith('={{ [')) errors.push('Los parámetros SQL no usan una matriz de expresiones');
 }

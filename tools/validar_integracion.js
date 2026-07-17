@@ -84,11 +84,12 @@ if (webhook1?.parameters?.path === 'etb-form' &&
 const lookup = nodes2.get('Consultar Contexto Etapa 1 MySQL');
 const query = lookup?.parameters?.query || '';
 for (const token of [
-  'FROM CRM.n8n_nsf_respuestas',
-  'workflow_session = $5',
-  "MAX(resultado_etapa_1) = 'continuar_parte_2'",
-  "MAX(next_step) = 'parte_2_tipo_sim'",
-  'MAX(tipo_sim) IS NOT NULL',
+  'FROM CRM.GestionesFlujosLog',
+  'workflowSession = $5',
+  "MAX(resultado) = 'continuar_parte_2'",
+  "MAX(nextStep) = 'parte_2_tipo_sim'",
+  "JSON_EXTRACT(respuestasJson, '$.tipo_sim')",
+  "codigoEtapa = 'validacionServicio'",
   'AS contrato_canonico',
 ]) {
   if (!query.includes(token)) fail(`Contrato SQL incompleto: falta ${token}`);
@@ -98,17 +99,17 @@ if (!errors.some((error) => error.startsWith('Contrato SQL'))) ok('Etapa 2 acept
 const save1 = nodes1.get('Guardar Respuestas MySQL');
 const save2 = nodes2.get('Guardar Etapa 2 MySQL');
 const save3 = nodes3.get('Guardar Etapa 3 MySQL');
-if (!save1?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_respuestas')) {
-  fail('La etapa 1 no guarda explícitamente en CRM.n8n_nsf_respuestas.');
+if (!save1?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) {
+  fail('La etapa 1 no guarda explícitamente en CRM.GestionesFlujosLog.');
 }
-if (!save2?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_etapa2')) {
-  fail('La etapa 2 no guarda explícitamente en CRM.n8n_nsf_etapa2.');
+if (!save2?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) {
+  fail('La etapa 2 no guarda explícitamente en CRM.GestionesFlujosLog.');
 }
-if (!save3?.parameters?.query?.includes('INSERT INTO CRM.n8n_nsf_etapa3')) {
-  fail('La etapa 3 no guarda explícitamente en CRM.n8n_nsf_etapa3.');
+if (!save3?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) {
+  fail('La etapa 3 no guarda explícitamente en CRM.GestionesFlujosLog.');
 }
 if (!errors.some((error) => error.includes('explícitamente en CRM'))) {
-  ok('Los tres workflows usan tablas calificadas del esquema CRM');
+  ok('Los tres workflows usan el log general calificado del esquema CRM');
 }
 
 function outgoing(workflow, nodeName) {
@@ -197,6 +198,10 @@ try {
   if (prepared?.handoff_url !== expectedUrl) fail(`URL de handoff inesperada: ${prepared?.handoff_url || 'vacía'}`);
   if (prepared?.tipo_sim !== 'eSIM') fail('El tipo de SIM no se conserva durante el handoff.');
   if (prepared?.resultado_etapa_1 !== 'continuar_parte_2') fail('El resultado de la etapa 1 cambió durante el handoff.');
+  if (prepared?.codigo_flujo !== 'ningunServicioFunciona' || prepared?.codigo_etapa !== 'validacionServicio' || prepared?.numero_etapa !== 1) {
+    fail('La etapa 1 no prepara el contrato del log general.');
+  }
+  JSON.parse(prepared?.contexto_json || '');
 } catch (error) {
   fail(`No fue posible simular el handoff: ${error.message}`);
 }
@@ -321,11 +326,12 @@ if (!errors.some((error) => error.includes('etapa 2 → etapa 3') || error.inclu
 
 const lookup3 = nodes3.get('Consultar Contexto Etapa 2 MySQL');
 for (const token of [
-  'FROM CRM.n8n_nsf_etapa2',
-  'workflow_session = $2',
-  "resultado_etapa_2 = 'continuar_parte_3'",
-  "next_step = 'parte_3_configuracion_equipo'",
-  "suma_ok = 'Si'",
+  'FROM CRM.GestionesFlujosLog',
+  'workflowSession = $2',
+  "resultado = 'continuar_parte_3'",
+  "nextStep = 'parte_3_configuracion_equipo'",
+  "JSON_EXTRACT(respuestasJson, '$.suma_ok')",
+  "codigoEtapa = 'diagnosticoSim'",
 ]) {
   if (!lookup3?.parameters?.query?.includes(token)) fail(`Contrato etapa 3 incompleto: ${token}`);
 }
@@ -335,10 +341,12 @@ if (!reaches(stage3, 'Preparar Contexto UI Etapa 3', 'Form Verificar Configuraci
 } else {
   ok('Etapa 3 inicia directamente con la configuración del equipo');
 }
-if (!reaches(stage3, 'Guardar Etapa 3 MySQL', 'Responder Cierre Etapa 3')) {
-  fail('La etapa 3 no responde después de persistir.');
+if (!reaches(stage3, 'Guardar Etapa 3 MySQL', 'Form Resumen y Observaciones') ||
+    !reaches(stage3, 'Form Resumen y Observaciones', 'Guardar Observaciones Asesor MySQL') ||
+    !reaches(stage3, 'Guardar Observaciones Asesor MySQL', 'Responder Cierre Etapa 3')) {
+  fail('La etapa 3 no completa el resumen, las observaciones y la persistencia final.');
 } else {
-  ok('Etapa 3 persiste todos sus cierres antes de responder');
+  ok('Etapa 3 resume la sesión actual y guarda las observaciones antes del cierre');
 }
 
 const sticky = stage2.nodes.filter((node) => node.type === 'n8n-nodes-base.stickyNote');
