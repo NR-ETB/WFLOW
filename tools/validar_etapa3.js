@@ -181,6 +181,21 @@ const scenarios = [
 
 const prepare = nodes.get('Preparar Registro Etapa 3 SQL');
 const prepareFn = new Function('$json', '$execution', prepare.parameters.jsCode);
+try {
+  const realWaitPayload = prepareFn({
+    query: {
+      __workflow_session: 'sesion-desde-webhook-waiting',
+      __outcome: 'pqr_solucionada_configuracion',
+      __next_step: 'cierre_asesor',
+      pqr_configuracion_ok: 'Si',
+    },
+  }, { id: 'execution-wait-test' })?.[0]?.json;
+  if (realWaitPayload?.workflow_session !== 'sesion-desde-webhook-waiting') {
+    fail('El cierre no recupera __workflow_session desde el webhook-waiting real');
+  }
+} catch (error) {
+  fail(`No fue posible normalizar la sesión real del Wait: ${error.message}`);
+}
 const coverage = new Set();
 for (const scenario of scenarios) {
   try {

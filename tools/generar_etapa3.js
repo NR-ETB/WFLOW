@@ -467,7 +467,7 @@ const answers = {
   escalamiento_segundo_nivel: outcome === 'escalado_segundo_nivel' ? raw('escalamiento_segundo_nivel') : null,
 };
 return [{ json: {
-  workflow_session: raw('workflow_session') || '',
+  workflow_session: raw('workflow_session') || raw('__workflow_session') || '',
   execution_id: String($execution.id || ''),
   workflow_version: 'etapa3-v3-responsive-homogeneo-20260715',
   resultado_etapa_3: outcome,
