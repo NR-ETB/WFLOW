@@ -175,9 +175,19 @@ if (coverageCfg?.title !== 'Validar sin cobertura y condición de {accent}') {
 if (coverageCfg?.options?.some((option) => /roaming/i.test(option.label))) {
   errors.push('La validación de cobertura todavía menciona roaming');
 }
-for (const marker of ['https://etb.com/cobertura4g.aspx', 'id="coverageMapLink"']) {
+for (const marker of [
+  'https://etb.com/cobertura4g.aspx',
+  'id="coverageMapLink"',
+  'name="mapa_cobertura_abierto"',
+  'data.get("mapa_cobertura_abierto")!=="Si"',
+  'syncCoverageRequirement()',
+  'submitBtn.disabled=!opened',
+  'id="coverageRequirementNotice"',
+  'Debes abrir el mapa de cobertura para habilitar el botón Continuar.',
+  'Mapa abierto. Ya puedes seleccionar el resultado y continuar.',
+]) {
   if (!coverageForm?.parameters?.jsCode?.includes(marker)) {
-    errors.push(`La validación de cobertura no muestra el mapa oficial ETB: falta ${marker}`);
+    errors.push(`La validación de cobertura no obliga a abrir el mapa oficial ETB: falta ${marker}`);
   }
 }
 const paymentForm = names.get('Form Confirmar Pago');
@@ -227,7 +237,11 @@ if (simCfg?.options?.some((option) => option.value === 'MultiSIM') || simCfg?.op
   errors.push('Tipo de SIM todavía muestra MultiSIM');
 }
 const prepareCode = names.get('Preparar Registro SQL')?.parameters?.jsCode || '';
-for (const marker of ["cobertura_viaje: value('cobertura_viaje')", "consulta_imei_abierta: value('consulta_imei_abierta')"]) {
+for (const marker of [
+  "cobertura_viaje: value('cobertura_viaje')",
+  "mapa_cobertura_abierto: value('mapa_cobertura_abierto')",
+  "consulta_imei_abierta: value('consulta_imei_abierta')",
+]) {
   if (!prepareCode.includes(marker)) errors.push(`Persistencia incompleta: ${marker}`);
 }
 

@@ -27,6 +27,8 @@ el mismo `workflowSession` y diferente `codigoEtapa`.
 
 - La etapa 1 obliga a validar la cobertura móvil en el mapa oficial de ETB y
   registrar las cuatro combinaciones entre viaje y disponibilidad de cobertura.
+  El botón `Continuar` permanece deshabilitado hasta abrir el enlace y la vista
+  muestra un aviso visible con este requisito.
 - En pagos, el botón muestra `Siguiente` cuando la cuenta está al día y
   `Confirmar y reconectar` cuando existe saldo pendiente.
 - La consulta pública del IMEI debe abrirse antes de habilitar la continuación;
@@ -37,7 +39,8 @@ el mismo `workflowSession` y diferente `codigoEtapa`.
 - Solo se manejan SIM física y eSIM; `MultiSIM` fue retirado del recorrido.
 - Para eSIM, una única pantalla confirma si el QR quedó instalado. Si falla con
   menos de 24 horas se reutiliza; al cumplirlas se registra obligatoriamente el
-  escalamiento al gestor.
+  escalamiento al gestor. Esta pantalla usa una disposición compacta vertical
+  para mantener la misma jerarquía visual del escalamiento.
 - El escalamiento de sincronización SUMA solo admite
   `Escalamiento realizado`.
 - En la etapa 3, `Falla en SMS` usa la misma ruta de soporte que

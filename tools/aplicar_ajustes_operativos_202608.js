@@ -199,6 +199,7 @@ function addCoverageStep(workflow) {
     ],
     referenceLink: 'https://etb.com/cobertura4g.aspx',
     referenceLinkLabel: 'Abrir mapa de cobertura móvil ETB',
+    errorMsg: 'Primero abre el mapa de cobertura móvil ETB y selecciona el resultado',
     outcome: null,
     nextStep: null,
   });
@@ -209,10 +210,54 @@ function addCoverageStep(workflow) {
       '.reference-link{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:48px;margin:0 0 14px;padding:10px 14px;border-radius:12px;border:1px solid rgba(56,199,255,.55);background:rgba(29,161,242,.12);color:#38c7ff;text-decoration:none;font-weight:700;font-size:13px}.reference-link:hover{background:rgba(29,161,242,.2);border-color:#38c7ff}.label{font-size:11px;',
     );
   }
+  if (!coverageCode.includes('.reference-link.is-opened{')) {
+    coverageCode = coverageCode.replace(
+      '.reference-link:hover{background:rgba(29,161,242,.2);border-color:#38c7ff}.label{',
+      '.reference-link:hover{background:rgba(29,161,242,.2);border-color:#38c7ff}.reference-link.is-opened{border-color:rgba(66,230,139,.65);color:#63e89e;background:rgba(66,230,139,.1)}.label{',
+    );
+  }
+  if (!coverageCode.includes('.link-requirement-notice{')) {
+    coverageCode = coverageCode.replace(
+      '.label{font-size:11px;',
+      '.link-requirement-notice{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,193,92,.38);background:rgba(255,193,92,.1);color:#ffd58a;font-size:12px;line-height:1.4}.link-requirement-notice.is-complete{border-color:rgba(66,230,139,.45);background:rgba(66,230,139,.1);color:#63e89e}.label{font-size:11px;',
+    );
+  }
   if (!coverageCode.includes('id="coverageMapLink"')) {
     coverageCode = coverageCode.replace(
       `'</p><div class="err-banner" id="errBanner" role="alert">'`,
       `'</p><a class="reference-link" id="coverageMapLink" href="' + esc(cfg.referenceLink) + '" target="_blank" rel="noopener noreferrer">&#8599; ' + esc(cfg.referenceLinkLabel) + '</a><div class="err-banner" id="errBanner" role="alert">'`,
+    );
+  }
+  if (!coverageCode.includes('id="coverageRequirementNotice"')) {
+    coverageCode = coverageCode.replace(
+      `'</a><div class="err-banner" id="errBanner" role="alert">'`,
+      `'</a><div class="link-requirement-notice" id="coverageRequirementNotice" role="status">&#9432; Debes abrir el mapa de cobertura para habilitar el botón Continuar.</div><div class="err-banner" id="errBanner" role="alert">'`,
+    );
+  }
+  if (!coverageCode.includes('name="mapa_cobertura_abierto"')) {
+    coverageCode = coverageCode.replace(
+      `rows.push('<input type="hidden" name="__workflow_session" value="' + esc(session) + '">');`,
+      `rows.push('<input type="hidden" name="__workflow_session" value="' + esc(session) + '">');\n  rows.push('<input type="hidden" id="mapaCoberturaAbierto" name="mapa_cobertura_abierto" value="' + esc(fieldValue('mapa_cobertura_abierto')) + '">');`,
+    );
+    coverageCode = coverageCode.replace(
+      `if (internal.has(key) || key === cfg.field || key === '__workflow_session') return;`,
+      `if (internal.has(key) || key === cfg.field || key === '__workflow_session' || key === 'mapa_cobertura_abierto') return;`,
+    );
+  }
+  if (!coverageCode.includes('var coverageLink=document.getElementById("coverageMapLink")')) {
+    coverageCode = coverageCode.replace(
+      'var submitBtn=document.getElementById("submitBtn");if(!form)return;',
+      'var submitBtn=document.getElementById("submitBtn");var coverageLink=document.getElementById("coverageMapLink");var coverageOpened=document.getElementById("mapaCoberturaAbierto");function syncCoverageRequirement(){var opened=!!coverageOpened&&coverageOpened.value==="Si";if(coverageLink)coverageLink.classList.toggle("is-opened",opened);if(submitBtn){submitBtn.disabled=!opened;submitBtn.setAttribute("aria-disabled",opened?"false":"true");}}if(coverageLink&&coverageOpened){coverageLink.addEventListener("click",function(){coverageOpened.value="Si";syncCoverageRequirement();err.classList.remove("is-visible");err.style.display="none";});}if(!form)return;syncCoverageRequirement();',
+    );
+    coverageCode = coverageCode.replace(
+      'var missing=false;groups.forEach(function(n){if(!data.get(n))missing=true;});if(missing){',
+      'var missing=false;groups.forEach(function(n){if(!data.get(n))missing=true;});if(!data.get("mapa_cobertura_abierto")||data.get("mapa_cobertura_abierto")!=="Si")missing=true;if(missing){',
+    );
+  }
+  if (!coverageCode.includes('var coverageNotice=document.getElementById("coverageRequirementNotice")')) {
+    coverageCode = coverageCode.replace(
+      'var coverageLink=document.getElementById("coverageMapLink");var coverageOpened=document.getElementById("mapaCoberturaAbierto");function syncCoverageRequirement(){var opened=!!coverageOpened&&coverageOpened.value==="Si";if(coverageLink)coverageLink.classList.toggle("is-opened",opened);if(submitBtn){',
+      'var coverageLink=document.getElementById("coverageMapLink");var coverageOpened=document.getElementById("mapaCoberturaAbierto");var coverageNotice=document.getElementById("coverageRequirementNotice");function syncCoverageRequirement(){var opened=!!coverageOpened&&coverageOpened.value==="Si";if(coverageLink)coverageLink.classList.toggle("is-opened",opened);if(coverageNotice){coverageNotice.classList.toggle("is-complete",opened);coverageNotice.innerHTML=opened?"&#10003; Mapa abierto. Ya puedes seleccionar el resultado y continuar.":"&#9432; Debes abrir el mapa de cobertura para habilitar el botón Continuar.";}if(submitBtn){',
     );
   }
   coverageForm.parameters.jsCode = coverageCode;
@@ -361,6 +406,12 @@ function adjustStageOne(workflow) {
       `linea_activa: value('linea_activa'),\n  cobertura_viaje: value('cobertura_viaje'),`,
     );
   }
+  if (!code.includes("mapa_cobertura_abierto: value('mapa_cobertura_abierto')")) {
+    code = code.replace(
+      `cobertura_viaje: value('cobertura_viaje'),`,
+      `cobertura_viaje: value('cobertura_viaje'),\n  mapa_cobertura_abierto: value('mapa_cobertura_abierto'),`,
+    );
+  }
   if (!code.includes("consulta_imei_abierta: value('consulta_imei_abierta')")) {
     code = code.replace(
       `registro_imei_ok: value('registro_imei_ok'),`,
@@ -407,6 +458,14 @@ function adjustStageTwo(workflow) {
       { value: 'Cumplidas24', label: 'No funciona: ya cumplió 24 horas' },
     ],
   });
+  let manageCode = manage.parameters.jsCode;
+  if (!manageCode.includes('.qr-state-layout-marker{')) {
+    manageCode = manageCode.replace(
+      '@media(prefers-reduced-motion:reduce)',
+      '.qr-state-layout-marker{display:none}.radio-group{grid-template-columns:1fr}.actions{grid-template-columns:1fr!important}.actions .btn{width:100%}@media(prefers-reduced-motion:reduce)',
+    );
+  }
+  manage.parameters.jsCode = manageCode;
 
   let confirmService = workflow.nodes.find((node) => node.name === 'Form Confirmar Funcionalidad Post QR');
   if (!confirmService) {

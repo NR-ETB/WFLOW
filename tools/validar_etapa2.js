@@ -330,12 +330,20 @@ if (sumaManagerCfg?.options?.length !== 1 || sumaManagerCfg?.options?.[0]?.value
   fail('Escalar Gestor SUMA todavía permite dejar el escalamiento pendiente');
 }
 const qrManageCfg = formConfig.get('Form Gestionar QR');
+const qrManageCode = nodes.get('Form Gestionar QR')?.parameters?.jsCode || '';
 if (qrManageCfg?.field !== 'qr_estado' ||
     !qrManageCfg?.options?.some((option) => option.value === 'Instalado') ||
     !qrManageCfg?.options?.some((option) => option.value === 'Menos24') ||
     !qrManageCfg?.options?.some((option) => option.value === 'Cumplidas24') ||
     qrManageCfg?.allowBack !== false) {
   fail('La gestión consolidada de QR no valida instalación y plazo de 24 horas');
+}
+for (const marker of [
+  '.qr-state-layout-marker{',
+  '.radio-group{grid-template-columns:1fr}',
+  '.actions{grid-template-columns:1fr!important}',
+]) {
+  if (!qrManageCode.includes(marker)) fail(`La vista de estado del QR no usa el formato compacto vertical: falta ${marker}`);
 }
 const qrManagerCfg = formConfig.get('Form Escalar Gestor QR');
 if (qrManagerCfg?.options?.length !== 1 || qrManagerCfg?.outcome !== 'gestor_qr_vencido') {
