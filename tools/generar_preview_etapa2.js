@@ -4,6 +4,7 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const workflow = JSON.parse(fs.readFileSync(path.join(root, 'Ningun Servicio Funciona - 2.json'), 'utf8'));
 const outputDir = path.join(root, 'preview', 'etapa2-v1');
+fs.rmSync(outputDir, { recursive: true, force: true });
 fs.mkdirSync(outputDir, { recursive: true });
 
 const forms = workflow.nodes.filter((node) => node.type === 'n8n-nodes-base.code' && node.name.startsWith('Form '));

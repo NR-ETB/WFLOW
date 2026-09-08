@@ -23,6 +23,28 @@ el mismo `workflowSession` y diferente `codigoEtapa`.
 | SIM, QR, portación y SUMA | `diagnosticoSim` | 2 |
 | Configuración y prueba de equipo | `configuracionEquipo` | 3 |
 
+## Reglas operativas vigentes
+
+- La etapa 1 obliga a validar la cobertura móvil en el mapa oficial de ETB y
+  registrar las cuatro combinaciones entre viaje y disponibilidad de cobertura.
+- En pagos, el botón muestra `Siguiente` cuando la cuenta está al día y
+  `Confirmar y reconectar` cuando existe saldo pendiente.
+- La consulta pública del IMEI debe abrirse antes de habilitar la continuación;
+  un IMEI bloqueado o no registrado se transfiere directamente a documentos.
+- La transferencia documental registra si fue una llamada dentro del horario,
+  una llamada fuera del horario gestionada digitalmente o una atención que ya
+  ingresó directamente por canal digital.
+- Solo se manejan SIM física y eSIM; `MultiSIM` fue retirado del recorrido.
+- Para eSIM, una única pantalla confirma si el QR quedó instalado. Si falla con
+  menos de 24 horas se reutiliza; al cumplirlas se registra obligatoriamente el
+  escalamiento al gestor.
+- El escalamiento de sincronización SUMA solo admite
+  `Escalamiento realizado`.
+- En la etapa 3, `Falla en SMS` usa la misma ruta de soporte que
+  `Falla en llamadas`.
+- Las eSIM omiten cualquier prueba cruzada en otro dispositivo. Su reinicio usa
+  modo avión, apagado durante 20 segundos y nuevo encendido, sin retirar la SIM.
+
 ## Archivos principales
 
 - `Ningun Servicio Funciona - 1.json`
@@ -119,6 +141,36 @@ No se crea otra tabla. En `VwNsfResumen`, la columna
 `respuestasEtapa3Json` conserva `observaciones_asesor` y
 `fecha_cierre_asesor` para la sesión correspondiente.
 
+## Validación posterior al QR
+
+Cuando la eSIM queda instalada o el QR se reutiliza antes de cumplir 24 horas,
+la etapa 2 solicita confirmar la funcionalidad del servicio:
+
+- Si el servicio funciona, la gestión se guarda y cierra en la etapa 2 con
+  `resultado = servicio_normalizado_qr`.
+- Si la falla continúa, el flujo sigue con las validaciones de soporte eSIM
+  (línea portada, NIP y recursos en SUMA).
+- Si el QR ya cumplió 24 horas sin funcionar, se presenta directamente el
+  escalamiento al gestor.
+
+## Plantilla de escalamiento
+
+Las salidas incluyen una plantilla desplegable y un botón para copiarla. El
+contenido depende del proceso:
+
+- QR vencido: fecha de expedición de la cédula, línea, descripción del error,
+  observación con la solución requerida o resultado esperado, contacto y
+  sistema operativo.
+- Sincronización (ICCID o SUMA): fecha de expedición de la cédula, correo del
+  cliente, cuenta de facturación, error, solución requerida y contacto.
+- Escalamiento técnico a segundo nivel: USUARIO, CANAL, TIPO DE FALLA, IMEI,
+  MODELO / MARCA / EQUIPO, BLOQUEO, NOMBRE, CC / CÉDULA, LÍNEA, CONTACTO,
+  CIUDAD, BARRIO, CHARGING y SAAW.
+
+La plantilla se copia para diligenciarla en el canal operativo definido. Sus
+datos personales no se envían en la URL ni se guardan automáticamente en el
+log del flujo.
+
 ## Consultas operativas
 
 Trazabilidad completa, una fila por etapa:
@@ -159,11 +211,13 @@ node tools/validar_v11.js
 node tools/validar_etapa2.js
 node tools/validar_etapa3.js
 node tools/validar_integracion.js
+node tools/validar_plantillas_escalamiento.js
 ```
 
 Si se regeneran los workflows con herramientas antiguas, vuelve a aplicar el
-contrato del log general:
+contrato del log general y después los ajustes operativos actuales:
 
 ```powershell
 node tools/adaptar_log_general.js
+node tools/aplicar_ajustes_operativos_202608.js
 ```

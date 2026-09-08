@@ -145,7 +145,94 @@ for (const [name, [field, expected]] of Object.entries(expectedConditions)) {
   }
 }
 
+const target = (source, branch) => workflow.connections[source]?.main?.[branch]?.[0]?.node;
+for (const required of [
+  'Form Validar Cobertura y Viaje', 'Enviar Validar Cobertura y Viaje',
+  'Espera Validar Cobertura y Viaje', 'IF Volver Validar Cobertura y Viaje',
+]) {
+  if (!names.has(required)) errors.push(`Falta el paso obligatorio de cobertura: ${required}`);
+}
+if (target('IF linea_activa', 0) !== 'Form Validar Cobertura y Viaje' ||
+    target('IF Volver Validar Cobertura y Viaje', 1) !== 'Form Confirmar Pago') {
+  errors.push('La cobertura no está ubicada entre la línea activa y la validación de pagos');
+}
+const coverageForm = names.get('Form Validar Cobertura y Viaje');
+const coverageCfgMatch = coverageForm?.parameters?.jsCode?.match(/^const cfg = (\{.*\});$/m);
+const coverageCfg = coverageCfgMatch ? JSON.parse(coverageCfgMatch[1]) : null;
+if (coverageCfg?.field !== 'cobertura_viaje' || coverageCfg?.options?.length !== 4) {
+  errors.push('La validación de cobertura/viaje no tiene el contrato esperado');
+}
+const expectedCoverageValues = [
+  'NoViajeConCobertura', 'ViajeConCobertura',
+  'ViajeSinCobertura', 'NoViajeSinCobertura',
+];
+if (JSON.stringify(coverageCfg?.options?.map((option) => option.value)) !== JSON.stringify(expectedCoverageValues)) {
+  errors.push('La cobertura no contempla las cuatro combinaciones de viaje y señal');
+}
+if (coverageCfg?.title !== 'Validar sin cobertura y condición de {accent}') {
+  errors.push('El título de la validación no usa "sin cobertura"');
+}
+if (coverageCfg?.options?.some((option) => /roaming/i.test(option.label))) {
+  errors.push('La validación de cobertura todavía menciona roaming');
+}
+for (const marker of ['https://etb.com/cobertura4g.aspx', 'id="coverageMapLink"']) {
+  if (!coverageForm?.parameters?.jsCode?.includes(marker)) {
+    errors.push(`La validación de cobertura no muestra el mapa oficial ETB: falta ${marker}`);
+  }
+}
+const paymentForm = names.get('Form Confirmar Pago');
+const paymentCode = paymentForm?.parameters?.jsCode || '';
+for (const marker of ['function syncPaymentButton()', '"Confirmar y reconectar":"Siguiente"']) {
+  if (!paymentCode.includes(marker)) errors.push(`El botón de pagos no cambia según el saldo: falta ${marker}`);
+}
+
+const imeiPublic = names.get('Form Consultar Registro IMEI');
+const imeiCode = imeiPublic?.parameters?.jsCode || '';
+for (const marker of [
+  'https://tramitescrcom.gov.co/consultaestadoequipo/',
+  'id="imeiPublicLink"', 'name="consulta_imei_abierta"',
+  'data.get("consulta_imei_abierta")!=="Si"',
+]) {
+  if (!imeiCode.includes(marker)) errors.push(`Consulta IMEI no obligatoria: falta ${marker}`);
+}
+if (target('IF registro_imei_ok', 1) !== 'Form Enviar Doc') {
+  errors.push('El IMEI no registrado no se transfiere directamente a documentación');
+}
+if (target('IF bloqueado', 0) !== 'Form Enviar Doc') {
+  errors.push('El IMEI bloqueado no se transfiere directamente a documentación');
+}
+const documentationForm = names.get('Form Enviar Doc');
+const documentationMatch = documentationForm?.parameters?.jsCode?.match(/^const cfg = (\{.*\});$/m);
+const documentationCfg = documentationMatch ? JSON.parse(documentationMatch[1]) : null;
+const expectedDocumentationValues = [
+  'TransferirDocumentacion', 'GestionarCanalDigital', 'GestionDigitalRealizada',
+];
+if (JSON.stringify(documentationCfg?.options?.map((option) => option.value)) !== JSON.stringify(expectedDocumentationValues)) {
+  errors.push('La transferencia documental no contiene las tres rutas operativas');
+}
+if (!documentationCfg?.options?.every((option) => option.description) ||
+    !documentationForm?.parameters?.jsCode?.includes('class="radio-description"')) {
+  errors.push('Las rutas documentales no muestran su condición de uso');
+}
+for (const obsolete of [
+  'Form Confirmar Proceso', 'Enviar Confirmar Proceso',
+  'Espera Confirmar Proceso', 'IF Volver Confirmar Proceso',
+]) {
+  if (names.has(obsolete)) errors.push(`Ruta antigua de IMEI todavía presente: ${obsolete}`);
+}
+
+const simCfgMatch = names.get('Form Tipo SIM')?.parameters?.jsCode?.match(/^const cfg = (\{.*\});$/m);
+const simCfg = simCfgMatch ? JSON.parse(simCfgMatch[1]) : null;
+if (simCfg?.options?.some((option) => option.value === 'MultiSIM') || simCfg?.options?.length !== 2) {
+  errors.push('Tipo de SIM todavía muestra MultiSIM');
+}
+const prepareCode = names.get('Preparar Registro SQL')?.parameters?.jsCode || '';
+for (const marker of ["cobertura_viaje: value('cobertura_viaje')", "consulta_imei_abierta: value('consulta_imei_abierta')"]) {
+  if (!prepareCode.includes(marker)) errors.push(`Persistencia incompleta: ${marker}`);
+}
+
 const serialized = JSON.stringify(workflow);
+if (serialized.includes('MultiSIM')) errors.push('MultiSIM todavía está presente en el JSON de la etapa 1');
 for (const forbidden of ["require('fs')", '/files/respuestas_', 'excel_saved']) {
   if (serialized.includes(forbidden)) errors.push(`Contenido heredado no permitido: ${forbidden}`);
 }

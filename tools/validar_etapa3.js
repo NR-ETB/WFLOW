@@ -101,6 +101,32 @@ for (const form of forms) {
 }
 if (forms.length !== 11) fail(`Cantidad inesperada de formularios: ${forms.length}`);
 if (formConfig.get('Form Verificar Configuracion Equipo')?.allowBack !== false) fail('La primera decisión no debe volver a la etapa 2');
+const equipmentOptions = formConfig.get('Form Confirmar Equipo Cliente')?.options || [];
+if (equipmentOptions.find((option) => option.value === 'Otro')?.label !== 'Otro / No identificado') {
+  fail('La opción de equipo alternativo no usa "Otro / No identificado"');
+}
+const platformNode = nodes.get('Form Configurar Equipo Plataforma');
+const platformCode = platformNode?.parameters?.jsCode || '';
+for (const marker of [
+  'https://www.helpforsmartphone.com/public/es-ES/honor/10/android-9-0/guides/22/Set-up-Internet-Honor-10',
+  'id="configurationGuideLink"', 'name="guia_configuracion_abierta"',
+  'data.get("guia_configuracion_abierta")!=="Si"',
+]) {
+  if (!platformCode.includes(marker)) fail(`La guía de configuración no es obligatoria: falta ${marker}`);
+}
+const restartNode = nodes.get('Form Reiniciar y Reinsertar SIM');
+try {
+  const renderRestart = new Function('$execution', '$json', restartNode.parameters.jsCode);
+  const execution = { id: 'restart-copy-test', mode: 'test', resumeUrl: 'https://n8n.example.test/webhook-waiting/restart-copy-test' };
+  const esimHtml = renderRestart(execution, { query: { workflow_session: 'esim-copy', tipo_sim: 'eSIM' } })?.[0]?.json?.html_response || '';
+  const physicalHtml = renderRestart(execution, { query: { workflow_session: 'physical-copy', tipo_sim: 'Fisica' } })?.[0]?.json?.html_response || '';
+  if (!esimHtml.includes('modo avión') || esimHtml.includes('retira la SIM')) {
+    fail('Las instrucciones de reinicio para eSIM todavía solicitan retirar la SIM');
+  }
+  if (!physicalHtml.includes('retira la SIM')) fail('La SIM física perdió sus instrucciones de reinstalación');
+} catch (error) {
+  fail(`No fue posible validar las instrucciones diferenciadas de reinicio: ${error.message}`);
+}
 
 const forbiddenNames = ['Form Iniciar Etapa 3', 'Form Confirmar Servicio Normalizado'];
 for (const name of forbiddenNames) if (nodes.has(name)) fail(`Nodo redundante presente: ${name}`);
@@ -125,7 +151,7 @@ function target(name, branch) {
 
 function simulate(scenario) {
   let current = 'Form Verificar Configuracion Equipo';
-  let query = { workflow_session: `audit-${scenario.name.replace(/\W+/g, '-')}`, tipo_sim: 'Fisica' };
+  let query = { workflow_session: `audit-${scenario.name.replace(/\W+/g, '-')}`, tipo_sim: scenario.tipo_sim || 'Fisica' };
   const visited = [];
   for (let guard = 0; guard < 120; guard += 1) {
     visited.push(current);
@@ -177,6 +203,20 @@ const scenarios = [
     name: 'llamadas segundo nivel', outcome: 'escalado_segundo_nivel',
     answers: { tipo_falla_equipo: 'Llamadas', dispositivo_alterno: 'No', reinicio_sim_resultado: 'No', escalamiento_segundo_nivel: 'Si' },
   },
+  {
+    name: 'SMS con el mismo soporte de llamadas', outcome: 'pqr_solucionada_falla_dispositivo',
+    answers: { tipo_falla_equipo: 'SMS', dispositivo_alterno: 'Si', prueba_cruzada_funciono: 'Si', pqr_dispositivo_ok: 'Si' },
+  },
+  {
+    name: 'eSIM omite prueba cruzada y reinicia sin retirar SIM', tipo_sim: 'eSIM', outcome: 'pqr_solucionada_reinicio_sim',
+    answers: { tipo_falla_equipo: 'DatosRed', tipo_equipo_cliente: 'Android', configuracion_plataforma: 'Revisada', configuracion_funciono: 'No', reinicio_sim_resultado: 'Si', pqr_reinicio_ok: 'Si' },
+    forbiddenVisited: ['Form Validar Dispositivo Alterno', 'Form Prueba Cruzada SIM'],
+  },
+  {
+    name: 'eSIM con falla de llamadas también omite prueba cruzada', tipo_sim: 'eSIM', outcome: 'pqr_solucionada_reinicio_sim',
+    answers: { tipo_falla_equipo: 'Llamadas', reinicio_sim_resultado: 'Si', pqr_reinicio_ok: 'Si' },
+    forbiddenVisited: ['Form Validar Dispositivo Alterno', 'Form Prueba Cruzada SIM'],
+  },
 ];
 
 const prepare = nodes.get('Preparar Registro Etapa 3 SQL');
@@ -196,10 +236,19 @@ try {
 } catch (error) {
   fail(`No fue posible normalizar la sesión real del Wait: ${error.message}`);
 }
+if (target('IF Configuracion Funciono', 1) !== 'IF Tipo SIM eSIM Antes de Prueba Cruzada' ||
+    target('IF Falla Datos o Red', 1) !== 'IF Tipo SIM eSIM Antes de Prueba Cruzada' ||
+    target('IF Tipo SIM eSIM Antes de Prueba Cruzada', 0) !== 'Form Reiniciar y Reinsertar SIM' ||
+    target('IF Tipo SIM eSIM Antes de Prueba Cruzada', 1) !== 'Form Validar Dispositivo Alterno') {
+  fail('La bifurcación eSIM no omite la prueba cruzada en todas las rutas');
+}
 const coverage = new Set();
 for (const scenario of scenarios) {
   try {
     const simulated = simulate(scenario);
+    for (const forbidden of scenario.forbiddenVisited || []) {
+      if (simulated.visited.includes(forbidden)) fail(`${scenario.name}: pasó indebidamente por ${forbidden}`);
+    }
     simulated.visited.forEach((name) => coverage.add(name));
     const prepared = prepareFn({ query: simulated.query }, { id: 'execution-test' })?.[0]?.json;
     if (prepared.resultado_etapa_3 !== scenario.outcome) fail(`${scenario.name}: resultado ${prepared.resultado_etapa_3}`);

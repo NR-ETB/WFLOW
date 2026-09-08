@@ -131,11 +131,12 @@ for (const form of forms) {
   if (wait && (wait.parameters.resume !== 'webhook' || wait.parameters.responseMode !== 'responseNode')) fail(`Espera incorrecta en ${waitName}`);
 }
 
-if (forms.length !== 11) fail(`Cantidad inesperada de formularios: ${forms.length}`);
+if (forms.length !== 10) fail(`Cantidad inesperada de formularios: ${forms.length}`);
 
 const expectedBack = {
-  'IF Volver Gestionar QR': 'Form Validar QR',
-  'IF Volver Confirmar Reposicion QR': 'Form Gestionar QR',
+  'IF Volver Gestionar QR': 'Form Gestionar QR',
+  'IF Volver Confirmar Funcionalidad Post QR': 'Form Gestionar QR',
+  'IF Volver Escalar Gestor QR': 'Form Gestionar QR',
   'IF Volver Verificar Portacion': 'Form Linea Portada',
   'IF Volver Estado NIP': 'Form Verificar Portacion',
   'IF Volver Confirmar Espera NIP': 'Form Estado NIP',
@@ -179,6 +180,10 @@ function simulate(scenario) {
       if (cfg.outcome) query.__outcome = cfg.outcome;
       if (cfg.nextStep) query.__next_step = cfg.nextStep;
     }
+    if (current === 'Marcar Cierre Servicio Post QR') {
+      const result = new Function('$json', node.parameters.jsCode)({ query })?.[0]?.json;
+      query = result?.query || query;
+    }
     if (node.type === 'n8n-nodes-base.if') {
       const condition = node.parameters.conditions.conditions[0];
       const fieldMatch = condition.leftValue.match(/\$json\.query\.([A-Za-z0-9_]+)/);
@@ -196,16 +201,24 @@ function simulate(scenario) {
 
 const scenarios = [
   {
-    name: 'eSIM reposición QR', tipo_sim: 'eSIM', outcome: 'reposicion_qr', next: 'fin_etapa_2',
-    answers: { inicio_etapa2: 'Si', qr_escaneo_ok: 'No', qr_gestion: 'Reposicion', reposicion_ok: 'Si' },
+    name: 'eSIM QR dentro de 24 horas normaliza servicio', tipo_sim: 'eSIM', outcome: 'servicio_normalizado_qr', next: 'fin_etapa_2',
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Menos24', servicio_post_qr: 'Si' },
+  },
+  {
+    name: 'eSIM instalada pero la falla continúa a soporte', tipo_sim: 'eSIM', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'No', suma_ok: 'Si' },
+  },
+  {
+    name: 'eSIM QR vencido escalado', tipo_sim: 'eSIM', outcome: 'gestor_qr_vencido', next: 'fin_etapa_2',
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Cumplidas24', gestor_qr_ok: 'Si' },
   },
   {
     name: 'eSIM espera NIP', tipo_sim: 'eSIM', outcome: 'espera_nip', next: 'revisar_nip',
-    answers: { inicio_etapa2: 'Si', qr_escaneo_ok: 'Si', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Pendiente', espera_nip_confirmada: 'Si' },
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Pendiente', espera_nip_confirmada: 'Si' },
   },
   {
     name: 'eSIM NIP vencido', tipo_sim: 'eSIM', outcome: 'gestor_nip_vencido', next: 'fin_etapa_2',
-    answers: { inicio_etapa2: 'Si', qr_escaneo_ok: 'Si', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Vencido', gestor_nip_ok: 'Si' },
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Vencido', gestor_nip_ok: 'Si' },
   },
   {
     name: 'física continúa etapa 3', tipo_sim: 'Fisica', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
@@ -214,14 +227,6 @@ const scenarios = [
   {
     name: 'física escalamiento SUMA', tipo_sim: 'Fisica', outcome: 'gestor_sincronizacion_suma', next: 'fin_etapa_2',
     answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'No', gestor_suma_ok: 'Si' },
-  },
-  {
-    name: 'MultiSIM virtual', tipo_sim: 'MultiSIM', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
-    answers: { inicio_etapa2: 'Si', ruta_multisim: 'Virtual', qr_escaneo_ok: 'Si', linea_portada: 'No', suma_ok: 'Si' },
-  },
-  {
-    name: 'MultiSIM física portada', tipo_sim: 'MultiSIM', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
-    answers: { inicio_etapa2: 'Si', ruta_multisim: 'Fisica', linea_portada: 'Si', portacion_completada: 'Si', suma_ok: 'Si' },
   },
   {
     name: 'NIP recibido y revalidado', tipo_sim: 'Fisica', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
@@ -320,6 +325,37 @@ const sumaCfg = formConfig.get('Form Validar SUMA');
 if (sumaCfg?.handoffPath !== 'etb-form-parte-2-continuar' || sumaCfg?.handoffWhen?.suma_ok !== 'Si') {
   fail('Validar SUMA no publica la ruta positiva en el webhook puente');
 }
+const sumaManagerCfg = formConfig.get('Form Escalar Gestor SUMA');
+if (sumaManagerCfg?.options?.length !== 1 || sumaManagerCfg?.options?.[0]?.value !== 'Si') {
+  fail('Escalar Gestor SUMA todavía permite dejar el escalamiento pendiente');
+}
+const qrManageCfg = formConfig.get('Form Gestionar QR');
+if (qrManageCfg?.field !== 'qr_estado' ||
+    !qrManageCfg?.options?.some((option) => option.value === 'Instalado') ||
+    !qrManageCfg?.options?.some((option) => option.value === 'Menos24') ||
+    !qrManageCfg?.options?.some((option) => option.value === 'Cumplidas24') ||
+    qrManageCfg?.allowBack !== false) {
+  fail('La gestión consolidada de QR no valida instalación y plazo de 24 horas');
+}
+const qrManagerCfg = formConfig.get('Form Escalar Gestor QR');
+if (qrManagerCfg?.options?.length !== 1 || qrManagerCfg?.outcome !== 'gestor_qr_vencido') {
+  fail('El QR vencido no termina en escalamiento confirmado al gestor');
+}
+const postQrCfg = formConfig.get('Form Confirmar Funcionalidad Post QR');
+if (postQrCfg?.field !== 'servicio_post_qr' ||
+    JSON.stringify(postQrCfg?.options?.map((option) => option.value)) !== JSON.stringify(['Si', 'No']) ||
+    target('IF Servicio Post QR Funciona', 0) !== 'Marcar Cierre Servicio Post QR' ||
+    target('IF Servicio Post QR Funciona', 1) !== 'Form Linea Portada') {
+  fail('La confirmación posterior al QR no cierra o continúa al soporte eSIM correctamente');
+}
+for (const obsolete of [
+  'IF Tipo SIM Fisica', 'Form Resolver MultiSIM', 'IF Ruta MultiSIM Virtual',
+  'Form Validar QR', 'Enviar Validar QR', 'Espera Validar QR', 'IF Volver Validar QR',
+  'IF QR Instalado Correctamente', 'IF QR Escaneo OK',
+]) {
+  if (nodes.has(obsolete)) fail(`MultiSIM/ruta antigua todavía presente: ${obsolete}`);
+}
+if (JSON.stringify(workflow).includes('MultiSIM')) fail('MultiSIM todavía aparece en el JSON de etapa 2');
 const handoffWebhook = nodes.get('Continuar directamente a Diagnostico de Equipo');
 if (handoffWebhook?.parameters?.path !== 'etb-form-parte-2-continuar' || handoffWebhook?.parameters?.responseMode !== 'responseNode') {
   fail('Webhook puente de continuidad incorrecto');
