@@ -98,7 +98,7 @@ node(w2, 'Preparar Registro Etapa 2 SQL').parameters.jsCode = insertGenericField
     code: 'diagnosticoSim',
     name: 'Diagnostico de SIM, QR, portacion y SUMA',
     number: 2,
-    status: "outcome === 'continuar_parte_3' ? 'EnCurso' : (outcome === 'espera_nip' ? 'EnEspera' : (['gestor_nip_vencido','gestor_sincronizacion_suma'].includes(outcome) ? 'Escalada' : 'Completada'))",
+    status: "outcome === 'continuar_parte_3' ? 'EnCurso' : (['gestor_nip_vencido','gestor_sincronizacion_suma','escalado_crm_bam'].includes(outcome) ? 'Escalada' : 'Completada')",
   },
 );
 const save2 = node(w2, 'Guardar Etapa 2 MySQL');

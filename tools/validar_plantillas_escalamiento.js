@@ -49,8 +49,11 @@ const workflows = [
     file: 'Ningun Servicio Funciona - 2.json',
     forms: {
       'Form Escalar Gestor QR': qrExpiredFields,
-      'Form Escalar Gestor NIP': secondLevelFields,
       'Form Escalar Gestor SUMA': synchronizationFields,
+    },
+    withoutTemplate: {
+      'Form Escalar Gestor NIP': ['Konecta mediante formulario', 'COS mediante Soul'],
+      'Form Escalar CRM BAM': ['otro aliado', 'CRM BAM', 'aliado responsable'],
     },
   },
   {
@@ -107,6 +110,22 @@ for (const definition of workflows) {
       verified += 1;
     } catch (error) {
       errors.push(`${formName}: JavaScript inválido (${error.message})`);
+    }
+  }
+  for (const [formName, expectedMarkers] of Object.entries(definition.withoutTemplate || {})) {
+    const node = workflow.nodes.find((candidate) => candidate.name === formName);
+    if (!node) {
+      errors.push(`${definition.file}: falta ${formName}`);
+      continue;
+    }
+    const code = node.parameters?.jsCode || '';
+    const match = code.match(/^const cfg = (\{.*\});$/m);
+    const cfg = match ? JSON.parse(match[1]) : {};
+    if (cfg.escalationTemplate || code.includes('copyEscalationTemplate') || code.includes('Ver plantilla de escalamiento')) {
+      errors.push(`${formName}: conserva una plantilla que debe definir cada aliado`);
+    }
+    for (const marker of expectedMarkers) {
+      if (!code.includes(marker)) errors.push(`${formName}: falta el texto operativo ${marker}`);
     }
   }
 }

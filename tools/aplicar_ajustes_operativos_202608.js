@@ -128,6 +128,31 @@ function addEscalationTemplate(node, fields = escalationTemplateSecondLevel) {
   node.parameters.jsCode = code;
 }
 
+function removeEscalationTemplate(node) {
+  const { match, cfg } = cfgOf(node);
+  delete cfg.escalationTemplate;
+  let code = node.parameters.jsCode.replace(match[0], `const cfg = ${JSON.stringify(cfg)};`);
+
+  const setupStart = code.indexOf('  const escalationTemplateText =');
+  const setupEnd = setupStart >= 0 ? code.indexOf('  const backButton =', setupStart) : -1;
+  if (setupStart >= 0 && setupEnd >= 0) code = code.slice(0, setupStart) + code.slice(setupEnd);
+
+  const cssStart = code.indexOf('.escalation-template{');
+  const cssEnd = cssStart >= 0 ? code.indexOf('.label{font-size:11px;', cssStart) : -1;
+  if (cssStart >= 0 && cssEnd >= 0) code = code.slice(0, cssStart) + code.slice(cssEnd);
+
+  code = code.replace(
+    `+ '</p>' + escalationTemplateHtml + '<div class="err-banner" id="errBanner" role="alert">'`,
+    `+ '</p><div class="err-banner" id="errBanner" role="alert">'`,
+  );
+
+  const copyStart = code.indexOf('var copyTemplateBtn=document.getElementById("copyEscalationTemplate")');
+  const copyEnd = copyStart >= 0 ? code.indexOf('form.querySelectorAll("button[type=submit]")', copyStart) : -1;
+  if (copyStart >= 0 && copyEnd >= 0) code = code.slice(0, copyStart) + code.slice(copyEnd);
+
+  node.parameters.jsCode = code;
+}
+
 function configurePaymentButton(workflow) {
   const node = get(workflow, 'Form Confirmar Pago');
   patchCfg(node, { buttonLabel: 'Siguiente' });
@@ -614,18 +639,57 @@ function adjustStageTwo(workflow) {
   setTarget(workflow, 'IF QR Cumplio 24 Horas', 0, 'Form Escalar Gestor QR');
   setTarget(workflow, 'IF QR Cumplio 24 Horas', 1, 'Form Confirmar Funcionalidad Post QR');
 
+  const crmBamForm = renameNode(workflow, 'Form Confirmar Espera NIP', 'Form Escalar CRM BAM');
+  const crmBamSend = renameNode(workflow, 'Enviar Confirmar Espera NIP', 'Enviar Escalar CRM BAM');
+  const crmBamWait = renameNode(workflow, 'Espera Confirmar Espera NIP', 'Espera Escalar CRM BAM');
+  const crmBamBack = renameNode(workflow, 'IF Volver Confirmar Espera NIP', 'IF Volver Escalar CRM BAM');
+  crmBamForm.id = 'etapa2-form-escalar-crm-bam-20260909';
+  crmBamSend.id = 'etapa2-enviar-escalar-crm-bam-20260909';
+  crmBamWait.id = 'etapa2-espera-escalar-crm-bam-20260909';
+  crmBamWait.webhookId = 'etapa2-escalar-crm-bam-20260909';
+  crmBamBack.id = 'etapa2-if-volver-escalar-crm-bam-20260909';
+  patchCfg(crmBamForm, {
+    field: 'crm_bam_ok',
+    title: 'Escalar caso a {accent}',
+    titleAccent: 'CRM BAM',
+    question: 'ESCALAMIENTO A CRM BAM',
+    subtitle: 'La venta corresponde a otro aliado y no puede gestionarse desde el aliado actual. Escala el caso a CRM BAM para que el aliado responsable continúe la gestión.',
+    tag: 'Diagnóstico · Escalamiento CRM BAM',
+    buttonLabel: 'Guardar y finalizar',
+    options: [{ value: 'Si', label: 'Caso escalado a CRM BAM' }],
+    finishToStart: true,
+    finishToStartWhen: {},
+    finishMode: 'complete',
+    outcome: 'escalado_crm_bam',
+    nextStep: 'fin_etapa_2',
+  });
+  removeEscalationTemplate(crmBamForm);
+  chain(workflow, 'Form Escalar CRM BAM', 'Enviar Escalar CRM BAM', 'Espera Escalar CRM BAM', 'IF Volver Escalar CRM BAM');
+  setTarget(workflow, 'IF Volver Escalar CRM BAM', 0, 'Form Estado NIP');
+  setTarget(workflow, 'IF Volver Escalar CRM BAM', 1, 'Preparar Registro Etapa 2 SQL');
+  setTarget(workflow, 'IF NIP Recibido', 0, 'Form Escalar CRM BAM');
+  setTarget(workflow, 'IF NIP Recibido', 1, 'IF NIP Vencido');
+  setTarget(workflow, 'IF NIP Vencido', 0, 'Form Escalar Gestor NIP');
+  setTarget(workflow, 'IF NIP Vencido', 1, 'Form Escalar CRM BAM');
+
   const sumaEscalation = get(workflow, 'Form Escalar Gestor SUMA');
   patchCfg(sumaEscalation, {
     options: [{ value: 'Si', label: 'Escalamiento realizado' }],
   });
   addEscalationTemplate(get(workflow, 'Form Escalar Gestor QR'), escalationTemplateQrExpired);
-  addEscalationTemplate(get(workflow, 'Form Escalar Gestor NIP'));
+  const nipEscalation = get(workflow, 'Form Escalar Gestor NIP');
+  patchCfg(nipEscalation, {
+    subtitle: 'El NIP venció y se debe gestionar nuevamente la venta. Escala el caso según el procedimiento interno del aliado: Konecta mediante formulario, COS mediante Soul o la plataforma definida por el aliado.',
+  });
+  removeEscalationTemplate(nipEscalation);
   addEscalationTemplate(get(workflow, 'Form Escalar Gestor SUMA'), escalationTemplateSynchronization);
 
   const prepare = get(workflow, 'Preparar Registro Etapa 2 SQL');
   let code = prepare.parameters.jsCode;
   code = code
     .replace("(raw('reposicion_ok') ? 'reposicion_qr' :", "(raw('gestor_qr_ok') ? 'gestor_qr_vencido' :")
+    .replace("raw('espera_nip_confirmada') ? 'espera_nip' :", "raw('crm_bam_ok') ? 'escalado_crm_bam' :")
+    .replace("  (outcome === 'espera_nip' ? 'revisar_nip' :\n  outcome === 'continuar_parte_3'", "  (outcome === 'continuar_parte_3'")
     .replace("const rutaMulti = tipoSim === 'MultiSIM' ? raw('ruta_multisim') : null;\n", '')
     .replace("const rutaVirtual = tipoSim === 'eSIM' || (tipoSim === 'MultiSIM' && rutaMulti === 'Virtual');", "const rutaVirtual = tipoSim === 'eSIM';")
     .replace("const finalQr = outcome === 'reposicion_qr';", "const finalQr = outcome === 'gestor_qr_vencido';")
@@ -634,7 +698,9 @@ function adjustStageTwo(workflow) {
     .replace("  qr_escaneo_ok: rutaVirtual ? raw('qr_escaneo_ok') : null,\n", '')
     .replace("  qr_vigencia: rutaVirtual ? raw('qr_vigencia') : null,", "  qr_estado: rutaVirtual ? raw('qr_estado') : null,")
     .replace("  reposicion_ok: finalQr ? raw('reposicion_ok') : null,", "  gestor_qr_ok: finalQr ? raw('gestor_qr_ok') : null,")
+    .replace("  espera_nip_confirmada: outcome === 'espera_nip' ? raw('espera_nip_confirmada') : null,", "  crm_bam_ok: outcome === 'escalado_crm_bam' ? raw('crm_bam_ok') : null,")
     .replace("['gestor_nip_vencido','gestor_sincronizacion_suma']", "['gestor_qr_vencido','gestor_nip_vencido','gestor_sincronizacion_suma']")
+    .replace("['gestor_qr_vencido','gestor_nip_vencido','gestor_sincronizacion_suma']", "['gestor_qr_vencido','gestor_nip_vencido','gestor_sincronizacion_suma','escalado_crm_bam']")
     .replaceAll('etapa2-v3-layout-handoff-20260715', 'etapa2-v4-ajustes-operativos-20260819');
   if (!code.includes("servicio_post_qr: rutaVirtual ? raw('servicio_post_qr')")) {
     code = code.replace(
@@ -643,7 +709,7 @@ function adjustStageTwo(workflow) {
     );
   }
   prepare.parameters.jsCode = code;
-  workflow.versionId = 'etapa2-v4-ajustes-operativos-20260819';
+  workflow.versionId = 'etapa2-v5-escalamiento-crm-bam-20260909';
 
   for (const note of workflow.nodes.filter((node) => node.type === 'n8n-nodes-base.stickyNote')) {
     if (typeof note.parameters?.content !== 'string') continue;

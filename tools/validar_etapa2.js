@@ -139,7 +139,7 @@ const expectedBack = {
   'IF Volver Escalar Gestor QR': 'Form Gestionar QR',
   'IF Volver Verificar Portacion': 'Form Linea Portada',
   'IF Volver Estado NIP': 'Form Verificar Portacion',
-  'IF Volver Confirmar Espera NIP': 'Form Estado NIP',
+  'IF Volver Escalar CRM BAM': 'Form Estado NIP',
   'IF Volver Escalar Gestor NIP': 'Form Estado NIP',
   'IF Volver Validar SUMA': 'Form Linea Portada',
   'IF Volver Escalar Gestor SUMA': 'Form Validar SUMA',
@@ -213,8 +213,8 @@ const scenarios = [
     answers: { inicio_etapa2: 'Si', qr_estado: 'Cumplidas24', gestor_qr_ok: 'Si' },
   },
   {
-    name: 'eSIM espera NIP', tipo_sim: 'eSIM', outcome: 'espera_nip', next: 'revisar_nip',
-    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Pendiente', espera_nip_confirmada: 'Si' },
+    name: 'eSIM NIP pendiente escalado a CRM BAM', tipo_sim: 'eSIM', outcome: 'escalado_crm_bam', next: 'fin_etapa_2',
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Pendiente', crm_bam_ok: 'Si' },
   },
   {
     name: 'eSIM NIP vencido', tipo_sim: 'eSIM', outcome: 'gestor_nip_vencido', next: 'fin_etapa_2',
@@ -229,8 +229,8 @@ const scenarios = [
     answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'No', gestor_suma_ok: 'Si' },
   },
   {
-    name: 'NIP recibido y revalidado', tipo_sim: 'Fisica', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
-    answers: { inicio_etapa2: 'Si', linea_portada: 'Si', portacion_completada: ['No', 'Si'], nip_estado: 'Recibido', suma_ok: 'Si' },
+    name: 'NIP recibido escalado a CRM BAM', tipo_sim: 'Fisica', outcome: 'escalado_crm_bam', next: 'fin_etapa_2',
+    answers: { inicio_etapa2: 'Si', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Recibido', crm_bam_ok: 'Si' },
   },
 ];
 
@@ -348,6 +348,43 @@ for (const marker of [
 const qrManagerCfg = formConfig.get('Form Escalar Gestor QR');
 if (qrManagerCfg?.options?.length !== 1 || qrManagerCfg?.outcome !== 'gestor_qr_vencido') {
   fail('El QR vencido no termina en escalamiento confirmado al gestor');
+}
+const nipManagerNode = nodes.get('Form Escalar Gestor NIP');
+const nipManagerCfg = formConfig.get('Form Escalar Gestor NIP');
+const nipManagerCode = nipManagerNode?.parameters?.jsCode || '';
+if (nipManagerCfg?.escalationTemplate ||
+    nipManagerCode.includes('copyEscalationTemplate') ||
+    nipManagerCode.includes('Ver plantilla de escalamiento')) {
+  fail('El vencimiento de NIP todavía muestra una plantilla de escalamiento');
+}
+for (const marker of ['gestionar nuevamente la venta', 'Konecta mediante formulario', 'COS mediante Soul']) {
+  if (!nipManagerCfg?.subtitle?.includes(marker)) fail(`El vencimiento de NIP no explica el proceso por aliado: falta ${marker}`);
+}
+const crmBamNode = nodes.get('Form Escalar CRM BAM');
+const crmBamCfg = formConfig.get('Form Escalar CRM BAM');
+const crmBamCode = crmBamNode?.parameters?.jsCode || '';
+if (crmBamCfg?.field !== 'crm_bam_ok' ||
+    crmBamCfg?.outcome !== 'escalado_crm_bam' ||
+    crmBamCfg?.nextStep !== 'fin_etapa_2' ||
+    crmBamCfg?.options?.length !== 1 ||
+    crmBamCfg?.options?.[0]?.label !== 'Caso escalado a CRM BAM') {
+  fail('El cierre de CRM BAM no tiene el contrato esperado');
+}
+if (crmBamCfg?.escalationTemplate ||
+    crmBamCode.includes('copyEscalationTemplate') ||
+    crmBamCode.includes('Ver plantilla de escalamiento')) {
+  fail('El escalamiento a CRM BAM no debe mostrar plantilla');
+}
+for (const marker of ['otro aliado', 'CRM BAM', 'aliado responsable']) {
+  if (!crmBamCfg?.subtitle?.includes(marker)) fail(`El escalamiento a CRM BAM no explica el motivo: falta ${marker}`);
+}
+if (target('IF NIP Recibido', 0) !== 'Form Escalar CRM BAM' ||
+    target('IF NIP Vencido', 1) !== 'Form Escalar CRM BAM' ||
+    target('IF NIP Vencido', 0) !== 'Form Escalar Gestor NIP') {
+  fail('Las rutas de NIP recibido, pendiente y vencido no están separadas correctamente');
+}
+if (nodes.has('Form Confirmar Espera NIP') || nodes.has('IF Volver Confirmar Espera NIP')) {
+  fail('La antigua salida de espera NIP todavía está presente');
 }
 const postQrCfg = formConfig.get('Form Confirmar Funcionalidad Post QR');
 if (postQrCfg?.field !== 'servicio_post_qr' ||
