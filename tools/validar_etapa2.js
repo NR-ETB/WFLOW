@@ -206,7 +206,7 @@ const scenarios = [
   },
   {
     name: 'eSIM instalada pero la falla continúa a soporte', tipo_sim: 'eSIM', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
-    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'No', suma_ok: 'Si' },
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'No', suma_ok: 'PospagoConRecursos' },
   },
   {
     name: 'eSIM QR vencido escalado', tipo_sim: 'eSIM', outcome: 'gestor_qr_vencido', next: 'fin_etapa_2',
@@ -222,11 +222,11 @@ const scenarios = [
   },
   {
     name: 'física continúa etapa 3', tipo_sim: 'Fisica', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
-    answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'Si' },
+    answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'PrepagoConRecursos' },
   },
   {
     name: 'física escalamiento SUMA', tipo_sim: 'Fisica', outcome: 'gestor_sincronizacion_suma', next: 'fin_etapa_2',
-    answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'No', gestor_suma_ok: 'Si' },
+    answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'PrepagoSinRecursos', gestor_suma_ok: 'Si' },
   },
   {
     name: 'NIP recibido escalado a CRM BAM', tipo_sim: 'Fisica', outcome: 'escalado_crm_bam', next: 'fin_etapa_2',
@@ -322,8 +322,23 @@ for (const [name, cfg] of formConfig) {
   if (String(cfg.tag || '').toLowerCase().includes('etapa 2')) fail(`${name} muestra el rótulo Etapa 2`);
 }
 const sumaCfg = formConfig.get('Form Validar SUMA');
-if (sumaCfg?.handoffPath !== 'etb-form-parte-2-continuar' || sumaCfg?.handoffWhen?.suma_ok !== 'Si') {
+const expectedSumaOptions = [
+  ['PospagoConRecursos', 'Activo y con recursos (pospago)'],
+  ['PrepagoConRecursos', 'Activo y con recursos (prepago)'],
+  ['PrepagoSinRecursos', 'Activo sin recursos o recursos incompletos (prepago)'],
+];
+if (JSON.stringify(sumaCfg?.options?.map((option) => [option.value, option.label])) !== JSON.stringify(expectedSumaOptions)) {
+  fail('Validar SUMA no muestra las tres opciones operativas solicitadas');
+}
+if (sumaCfg?.handoffPath !== 'etb-form-parte-2-continuar' ||
+    JSON.stringify(sumaCfg?.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos'])) {
   fail('Validar SUMA no publica la ruta positiva en el webhook puente');
+}
+const sumaCode = nodes.get('Form Validar SUMA')?.parameters?.jsCode || '';
+if (!sumaCode.includes('Array.isArray(expected)') ||
+    target('IF SUMA Activo y Recursos', 0) !== 'Form Escalar Gestor SUMA' ||
+    target('IF SUMA Activo y Recursos', 1) !== 'Preparar Registro Etapa 2 SQL') {
+  fail('Las opciones válidas de SUMA no continúan y la opción sin recursos no escala correctamente');
 }
 const sumaManagerCfg = formConfig.get('Form Escalar Gestor SUMA');
 if (sumaManagerCfg?.options?.length !== 1 || sumaManagerCfg?.options?.[0]?.value !== 'Si') {
@@ -356,6 +371,9 @@ if (nipManagerCfg?.escalationTemplate ||
     nipManagerCode.includes('copyEscalationTemplate') ||
     nipManagerCode.includes('Ver plantilla de escalamiento')) {
   fail('El vencimiento de NIP todavía muestra una plantilla de escalamiento');
+}
+if (nipManagerCfg?.options?.length !== 1 || nipManagerCfg?.options?.[0]?.label !== 'Se escaló el caso') {
+  fail('El vencimiento de NIP no usa la confirmación única solicitada');
 }
 for (const marker of ['gestionar nuevamente la venta', 'Konecta mediante formulario', 'COS mediante Soul']) {
   if (!nipManagerCfg?.subtitle?.includes(marker)) fail(`El vencimiento de NIP no explica el proceso por aliado: falta ${marker}`);

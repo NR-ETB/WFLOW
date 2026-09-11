@@ -249,7 +249,8 @@ const redirect2 = nodes2.get('Redirigir a Etapa 3');
 const sumaForm = nodes2.get('Form Validar SUMA');
 const sumaCfgMatch = String(sumaForm?.parameters?.jsCode || '').match(/^const cfg = (\{.*\});$/m);
 const sumaCfg = sumaCfgMatch ? JSON.parse(sumaCfgMatch[1]) : {};
-if (sumaCfg.handoffPath !== 'etb-form-parte-2-continuar' || sumaCfg.handoffWhen?.suma_ok !== 'Si') {
+if (sumaCfg.handoffPath !== 'etb-form-parte-2-continuar' ||
+    JSON.stringify(sumaCfg.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos'])) {
   fail('El formulario SUMA no entrega su respuesta positiva al webhook puente.');
 }
 try {
@@ -284,13 +285,13 @@ try {
   const prepareHandoff = nodes2.get('Preparar Handoff SQL y Continuidad');
   const normalized = new Function('$json', normalizeHandoff.parameters.jsCode)({
     headers: { host: 'n8n.example.test', 'x-forwarded-proto': 'https' },
-    query: { __workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica', suma_ok: 'Si' },
+    query: { __workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica', suma_ok: 'PospagoConRecursos' },
   })?.[0]?.json;
   if (String(normalized?.handoff_query_json || '').includes(',')) {
     fail('El payload del handoff conserva comas incompatibles con Query Parameters de MySQL.');
   }
   const decodedHandoff = JSON.parse(decodeURIComponent(normalized.handoff_query_json));
-  if (decodedHandoff.suma_ok !== 'Si' || decodedHandoff.__workflow_session !== 'sesion-etapa3-prueba') {
+  if (decodedHandoff.suma_ok !== 'PospagoConRecursos' || decodedHandoff.__workflow_session !== 'sesion-etapa3-prueba') {
     fail('El payload codificado del handoff no conserva sus respuestas.');
   }
   const handoffContext = new Function('$json', prepareHandoff.parameters.jsCode)({
@@ -310,7 +311,7 @@ try {
 }
 try {
   const prepared2 = new Function('$json', '$execution', prepare2.parameters.jsCode)(
-    { query: { workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica', suma_ok: 'Si' } },
+    { query: { workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica', suma_ok: 'PospagoConRecursos' } },
     { id: 'integracion-etapa2', resumeUrl: 'https://n8n.example.test/webhook-waiting/etapa2-integracion' },
   )?.[0]?.json;
   const expectedStage3Url = 'https://n8n.example.test/webhook/etb-form-parte-3?workflow_session=sesion-etapa3-prueba';

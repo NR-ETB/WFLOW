@@ -123,7 +123,7 @@ codigoFlujo = ningunServicioFunciona
 codigoEtapa = diagnosticoSim
 resultado = continuar_parte_3
 nextStep = parte_3_configuracion_equipo
-suma_ok = Si en respuestasJson
+suma_ok = PospagoConRecursos o PrepagoConRecursos en respuestasJson
 ```
 
 ## Cierre de la gestión

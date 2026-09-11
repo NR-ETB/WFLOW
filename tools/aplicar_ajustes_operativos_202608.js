@@ -676,10 +676,35 @@ function adjustStageTwo(workflow) {
   patchCfg(sumaEscalation, {
     options: [{ value: 'Si', label: 'Escalamiento realizado' }],
   });
+  const sumaValidation = get(workflow, 'Form Validar SUMA');
+  patchCfg(sumaValidation, {
+    question: 'ESTADO DE LA LÍNEA Y LOS RECURSOS',
+    subtitle: 'Selecciona el estado encontrado en SUMA Móvil según el tipo de servicio y los recursos disponibles.',
+    options: [
+      { value: 'PospagoConRecursos', label: 'Activo y con recursos (pospago)' },
+      { value: 'PrepagoConRecursos', label: 'Activo y con recursos (prepago)' },
+      { value: 'PrepagoSinRecursos', label: 'Activo sin recursos o recursos incompletos (prepago)' },
+    ],
+    handoffWhen: {
+      suma_ok: ['PospagoConRecursos', 'PrepagoConRecursos'],
+    },
+  });
+  let sumaCode = sumaValidation.parameters.jsCode;
+  sumaCode = sumaCode.replace(
+    'return !!handoffUrl&&keys.length>0&&keys.every(function(k){return data.get(k)===String(handoffWhen[k]);});',
+    'return !!handoffUrl&&keys.length>0&&keys.every(function(k){var expected=handoffWhen[k];return Array.isArray(expected)?expected.map(String).includes(data.get(k)):data.get(k)===String(expected);});',
+  );
+  sumaValidation.parameters.jsCode = sumaCode;
+  const sumaDecision = get(workflow, 'IF SUMA Activo y Recursos');
+  sumaDecision.parameters.conditions.conditions[0].leftValue = '={{ $json.query.suma_ok }}';
+  sumaDecision.parameters.conditions.conditions[0].rightValue = 'PrepagoSinRecursos';
+  setTarget(workflow, 'IF SUMA Activo y Recursos', 0, 'Form Escalar Gestor SUMA');
+  setTarget(workflow, 'IF SUMA Activo y Recursos', 1, 'Preparar Registro Etapa 2 SQL');
   addEscalationTemplate(get(workflow, 'Form Escalar Gestor QR'), escalationTemplateQrExpired);
   const nipEscalation = get(workflow, 'Form Escalar Gestor NIP');
   patchCfg(nipEscalation, {
     subtitle: 'El NIP venció y se debe gestionar nuevamente la venta. Escala el caso según el procedimiento interno del aliado: Konecta mediante formulario, COS mediante Soul o la plataforma definida por el aliado.',
+    options: [{ value: 'Si', label: 'Se escaló el caso' }],
   });
   removeEscalationTemplate(nipEscalation);
   addEscalationTemplate(get(workflow, 'Form Escalar Gestor SUMA'), escalationTemplateSynchronization);
@@ -689,6 +714,7 @@ function adjustStageTwo(workflow) {
   code = code
     .replace("(raw('reposicion_ok') ? 'reposicion_qr' :", "(raw('gestor_qr_ok') ? 'gestor_qr_vencido' :")
     .replace("raw('espera_nip_confirmada') ? 'espera_nip' :", "raw('crm_bam_ok') ? 'escalado_crm_bam' :")
+    .replace("raw('suma_ok') === 'Si' ? 'continuar_parte_3'", "['PospagoConRecursos','PrepagoConRecursos'].includes(raw('suma_ok')) ? 'continuar_parte_3'")
     .replace("  (outcome === 'espera_nip' ? 'revisar_nip' :\n  outcome === 'continuar_parte_3'", "  (outcome === 'continuar_parte_3'")
     .replace("const rutaMulti = tipoSim === 'MultiSIM' ? raw('ruta_multisim') : null;\n", '')
     .replace("const rutaVirtual = tipoSim === 'eSIM' || (tipoSim === 'MultiSIM' && rutaMulti === 'Virtual');", "const rutaVirtual = tipoSim === 'eSIM';")
@@ -709,7 +735,7 @@ function adjustStageTwo(workflow) {
     );
   }
   prepare.parameters.jsCode = code;
-  workflow.versionId = 'etapa2-v5-escalamiento-crm-bam-20260909';
+  workflow.versionId = 'etapa2-v6-opciones-nip-suma-20260911';
 
   for (const note of workflow.nodes.filter((node) => node.type === 'n8n-nodes-base.stickyNote')) {
     if (typeof note.parameters?.content !== 'string') continue;
