@@ -164,13 +164,16 @@ contenido depende del proceso:
 - QR vencido: fecha de expedición de la cédula, línea, descripción del error,
   observación con la solución requerida o resultado esperado, contacto y
   sistema operativo.
-- Sincronización (ICCID o SUMA): fecha de expedición de la cédula, correo del
+- Sincronización ICCID: fecha de expedición de la cédula, correo del
   cliente, cuenta de facturación, error, solución requerida y contacto.
 - Vencimiento de NIP: no muestra plantilla. La venta se gestiona nuevamente
   según el procedimiento interno del aliado: formulario en Konecta, Soul en
   COS o la plataforma definida por el aliado.
 - NIP recibido o pendiente dentro del plazo: no muestra plantilla. El caso se
   escala a CRM BAM porque la venta corresponde a otro aliado.
+- Prepago sin recursos o con recursos incompletos: no muestra plantilla. La
+  gestión cierra como `no_aplica_sin_recursos` y registra que no existe falla
+  cuando el servicio requiere datos, minutos o SMS no disponibles.
 - Escalamiento técnico a segundo nivel: USUARIO, CANAL, TIPO DE FALLA, IMEI,
   MODELO / MARCA / EQUIPO, BLOQUEO, NOMBRE, CC / CÉDULA, LÍNEA, CONTACTO,
   CIUDAD, BARRIO, CHARGING y SAAW.

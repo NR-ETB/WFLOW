@@ -49,11 +49,11 @@ const workflows = [
     file: 'Ningun Servicio Funciona - 2.json',
     forms: {
       'Form Escalar Gestor QR': qrExpiredFields,
-      'Form Escalar Gestor SUMA': synchronizationFields,
     },
     withoutTemplate: {
       'Form Escalar Gestor NIP': ['Konecta mediante formulario', 'COS mediante Soul'],
       'Form Escalar CRM BAM': ['otro aliado', 'CRM BAM', 'aliado responsable'],
+      'Form Cierre Sin Recursos': ['No aplica falla', 'datos, minutos o SMS'],
     },
   },
   {

@@ -672,10 +672,34 @@ function adjustStageTwo(workflow) {
   setTarget(workflow, 'IF NIP Vencido', 0, 'Form Escalar Gestor NIP');
   setTarget(workflow, 'IF NIP Vencido', 1, 'Form Escalar CRM BAM');
 
-  const sumaEscalation = get(workflow, 'Form Escalar Gestor SUMA');
-  patchCfg(sumaEscalation, {
-    options: [{ value: 'Si', label: 'Escalamiento realizado' }],
+  const noResourcesForm = renameNode(workflow, 'Form Escalar Gestor SUMA', 'Form Cierre Sin Recursos');
+  const noResourcesSend = renameNode(workflow, 'Enviar Escalar Gestor SUMA', 'Enviar Cierre Sin Recursos');
+  const noResourcesWait = renameNode(workflow, 'Espera Escalar Gestor SUMA', 'Espera Cierre Sin Recursos');
+  const noResourcesBack = renameNode(workflow, 'IF Volver Escalar Gestor SUMA', 'IF Volver Cierre Sin Recursos');
+  noResourcesForm.id = 'etapa2-form-cierre-sin-recursos-20260922';
+  noResourcesSend.id = 'etapa2-enviar-cierre-sin-recursos-20260922';
+  noResourcesWait.id = 'etapa2-espera-cierre-sin-recursos-20260922';
+  noResourcesWait.webhookId = 'etapa2-cierre-sin-recursos-20260922';
+  noResourcesBack.id = 'etapa2-if-volver-cierre-sin-recursos-20260922';
+  patchCfg(noResourcesForm, {
+    field: 'cierre_sin_recursos_ok',
+    title: 'Servicio sin {accent}',
+    titleAccent: 'recursos disponibles',
+    question: 'CIERRE DE LA GESTIÓN',
+    subtitle: 'No aplica falla cuando el servicio afectado requiere un recurso que el cliente no tiene disponible (datos, minutos o SMS).',
+    tag: 'Diagnóstico · Sin recursos disponibles',
+    buttonLabel: 'Guardar y finalizar',
+    options: [{ value: 'Si', label: 'Confirmar cierre sin recursos' }],
+    finishToStart: true,
+    finishToStartWhen: {},
+    finishMode: 'complete',
+    outcome: 'no_aplica_sin_recursos',
+    nextStep: 'fin_etapa_2',
   });
+  removeEscalationTemplate(noResourcesForm);
+  chain(workflow, 'Form Cierre Sin Recursos', 'Enviar Cierre Sin Recursos', 'Espera Cierre Sin Recursos', 'IF Volver Cierre Sin Recursos');
+  setTarget(workflow, 'IF Volver Cierre Sin Recursos', 0, 'Form Validar SUMA');
+  setTarget(workflow, 'IF Volver Cierre Sin Recursos', 1, 'Preparar Registro Etapa 2 SQL');
   const sumaValidation = get(workflow, 'Form Validar SUMA');
   patchCfg(sumaValidation, {
     question: 'ESTADO DE LA LÍNEA Y LOS RECURSOS',
@@ -698,7 +722,7 @@ function adjustStageTwo(workflow) {
   const sumaDecision = get(workflow, 'IF SUMA Activo y Recursos');
   sumaDecision.parameters.conditions.conditions[0].leftValue = '={{ $json.query.suma_ok }}';
   sumaDecision.parameters.conditions.conditions[0].rightValue = 'PrepagoSinRecursos';
-  setTarget(workflow, 'IF SUMA Activo y Recursos', 0, 'Form Escalar Gestor SUMA');
+  setTarget(workflow, 'IF SUMA Activo y Recursos', 0, 'Form Cierre Sin Recursos');
   setTarget(workflow, 'IF SUMA Activo y Recursos', 1, 'Preparar Registro Etapa 2 SQL');
   addEscalationTemplate(get(workflow, 'Form Escalar Gestor QR'), escalationTemplateQrExpired);
   const nipEscalation = get(workflow, 'Form Escalar Gestor NIP');
@@ -707,13 +731,13 @@ function adjustStageTwo(workflow) {
     options: [{ value: 'Si', label: 'Se escaló el caso' }],
   });
   removeEscalationTemplate(nipEscalation);
-  addEscalationTemplate(get(workflow, 'Form Escalar Gestor SUMA'), escalationTemplateSynchronization);
 
   const prepare = get(workflow, 'Preparar Registro Etapa 2 SQL');
   let code = prepare.parameters.jsCode;
   code = code
     .replace("(raw('reposicion_ok') ? 'reposicion_qr' :", "(raw('gestor_qr_ok') ? 'gestor_qr_vencido' :")
     .replace("raw('espera_nip_confirmada') ? 'espera_nip' :", "raw('crm_bam_ok') ? 'escalado_crm_bam' :")
+    .replace("raw('gestor_suma_ok') ? 'gestor_sincronizacion_suma' :", "raw('cierre_sin_recursos_ok') ? 'no_aplica_sin_recursos' :")
     .replace("raw('suma_ok') === 'Si' ? 'continuar_parte_3'", "['PospagoConRecursos','PrepagoConRecursos'].includes(raw('suma_ok')) ? 'continuar_parte_3'")
     .replace("  (outcome === 'espera_nip' ? 'revisar_nip' :\n  outcome === 'continuar_parte_3'", "  (outcome === 'continuar_parte_3'")
     .replace("const rutaMulti = tipoSim === 'MultiSIM' ? raw('ruta_multisim') : null;\n", '')
@@ -725,6 +749,8 @@ function adjustStageTwo(workflow) {
     .replace("  qr_vigencia: rutaVirtual ? raw('qr_vigencia') : null,", "  qr_estado: rutaVirtual ? raw('qr_estado') : null,")
     .replace("  reposicion_ok: finalQr ? raw('reposicion_ok') : null,", "  gestor_qr_ok: finalQr ? raw('gestor_qr_ok') : null,")
     .replace("  espera_nip_confirmada: outcome === 'espera_nip' ? raw('espera_nip_confirmada') : null,", "  crm_bam_ok: outcome === 'escalado_crm_bam' ? raw('crm_bam_ok') : null,")
+    .replace("  suma_ok: ['continuar_parte_3','gestor_sincronizacion_suma'].includes(outcome) ? raw('suma_ok') : null,", "  suma_ok: ['continuar_parte_3','no_aplica_sin_recursos'].includes(outcome) ? raw('suma_ok') : null,")
+    .replace("  gestor_suma_ok: outcome === 'gestor_sincronizacion_suma' ? raw('gestor_suma_ok') : null,", "  cierre_sin_recursos_ok: outcome === 'no_aplica_sin_recursos' ? raw('cierre_sin_recursos_ok') : null,")
     .replace("['gestor_nip_vencido','gestor_sincronizacion_suma']", "['gestor_qr_vencido','gestor_nip_vencido','gestor_sincronizacion_suma']")
     .replace("['gestor_qr_vencido','gestor_nip_vencido','gestor_sincronizacion_suma']", "['gestor_qr_vencido','gestor_nip_vencido','gestor_sincronizacion_suma','escalado_crm_bam']")
     .replaceAll('etapa2-v3-layout-handoff-20260715', 'etapa2-v4-ajustes-operativos-20260819');
@@ -735,7 +761,7 @@ function adjustStageTwo(workflow) {
     );
   }
   prepare.parameters.jsCode = code;
-  workflow.versionId = 'etapa2-v6-opciones-nip-suma-20260911';
+  workflow.versionId = 'etapa2-v7-cierre-recursos-20260922';
 
   for (const note of workflow.nodes.filter((node) => node.type === 'n8n-nodes-base.stickyNote')) {
     if (typeof note.parameters?.content !== 'string') continue;
@@ -747,6 +773,12 @@ function adjustStageTwo(workflow) {
 }
 
 function adjustStageThree(workflow) {
+  const stageTwoLookup = get(workflow, 'Consultar Contexto Etapa 2 MySQL');
+  stageTwoLookup.parameters.query = stageTwoLookup.parameters.query.replace(
+    "AND JSON_UNQUOTE(JSON_EXTRACT(respuestasJson, '$.suma_ok')) = 'Si'",
+    "AND JSON_UNQUOTE(JSON_EXTRACT(respuestasJson, '$.suma_ok')) IN ('PospagoConRecursos', 'PrepagoConRecursos')",
+  );
+
   const form = get(workflow, 'Form Verificar Configuracion Equipo');
   const parsed = cfgOf(form);
   if (!parsed.cfg.options.some((option) => option.value === 'SMS')) {

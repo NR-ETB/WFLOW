@@ -332,6 +332,7 @@ for (const token of [
   "resultado = 'continuar_parte_3'",
   "nextStep = 'parte_3_configuracion_equipo'",
   "JSON_EXTRACT(respuestasJson, '$.suma_ok')",
+  "IN ('PospagoConRecursos', 'PrepagoConRecursos')",
   "codigoEtapa = 'diagnosticoSim'",
 ]) {
   if (!lookup3?.parameters?.query?.includes(token)) fail(`Contrato etapa 3 incompleto: ${token}`);

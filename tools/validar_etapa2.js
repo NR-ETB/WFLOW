@@ -142,7 +142,7 @@ const expectedBack = {
   'IF Volver Escalar CRM BAM': 'Form Estado NIP',
   'IF Volver Escalar Gestor NIP': 'Form Estado NIP',
   'IF Volver Validar SUMA': 'Form Linea Portada',
-  'IF Volver Escalar Gestor SUMA': 'Form Validar SUMA',
+  'IF Volver Cierre Sin Recursos': 'Form Validar SUMA',
 };
 for (const [name, expected] of Object.entries(expectedBack)) {
   const condition = nodes.get(name)?.parameters?.conditions?.conditions?.[0];
@@ -225,8 +225,8 @@ const scenarios = [
     answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'PrepagoConRecursos' },
   },
   {
-    name: 'física escalamiento SUMA', tipo_sim: 'Fisica', outcome: 'gestor_sincronizacion_suma', next: 'fin_etapa_2',
-    answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'PrepagoSinRecursos', gestor_suma_ok: 'Si' },
+    name: 'prepago sin recursos cierra sin falla', tipo_sim: 'Fisica', outcome: 'no_aplica_sin_recursos', next: 'fin_etapa_2',
+    answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'PrepagoSinRecursos', cierre_sin_recursos_ok: 'Si' },
   },
   {
     name: 'NIP recibido escalado a CRM BAM', tipo_sim: 'Fisica', outcome: 'escalado_crm_bam', next: 'fin_etapa_2',
@@ -336,13 +336,24 @@ if (sumaCfg?.handoffPath !== 'etb-form-parte-2-continuar' ||
 }
 const sumaCode = nodes.get('Form Validar SUMA')?.parameters?.jsCode || '';
 if (!sumaCode.includes('Array.isArray(expected)') ||
-    target('IF SUMA Activo y Recursos', 0) !== 'Form Escalar Gestor SUMA' ||
+    target('IF SUMA Activo y Recursos', 0) !== 'Form Cierre Sin Recursos' ||
     target('IF SUMA Activo y Recursos', 1) !== 'Preparar Registro Etapa 2 SQL') {
-  fail('Las opciones válidas de SUMA no continúan y la opción sin recursos no escala correctamente');
+  fail('Las opciones válidas de SUMA no continúan y la opción sin recursos no cierra correctamente');
 }
-const sumaManagerCfg = formConfig.get('Form Escalar Gestor SUMA');
-if (sumaManagerCfg?.options?.length !== 1 || sumaManagerCfg?.options?.[0]?.value !== 'Si') {
-  fail('Escalar Gestor SUMA todavía permite dejar el escalamiento pendiente');
+const noResourcesNode = nodes.get('Form Cierre Sin Recursos');
+const noResourcesCfg = formConfig.get('Form Cierre Sin Recursos');
+const noResourcesCode = noResourcesNode?.parameters?.jsCode || '';
+if (noResourcesCfg?.field !== 'cierre_sin_recursos_ok' ||
+    noResourcesCfg?.outcome !== 'no_aplica_sin_recursos' ||
+    noResourcesCfg?.options?.length !== 1 ||
+    !noResourcesCfg?.subtitle?.includes('No aplica falla') ||
+    !noResourcesCfg?.subtitle?.includes('datos, minutos o SMS')) {
+  fail('El cierre sin recursos no muestra el mensaje operativo solicitado');
+}
+if (noResourcesCfg?.escalationTemplate ||
+    noResourcesCode.includes('copyEscalationTemplate') ||
+    noResourcesCode.includes('Ver plantilla de escalamiento')) {
+  fail('El cierre sin recursos todavía muestra una plantilla de escalamiento');
 }
 const qrManageCfg = formConfig.get('Form Gestionar QR');
 const qrManageCode = nodes.get('Form Gestionar QR')?.parameters?.jsCode || '';

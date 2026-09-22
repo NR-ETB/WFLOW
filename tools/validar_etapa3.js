@@ -140,6 +140,7 @@ for (const marker of [
   "resultado = 'continuar_parte_3'",
   "nextStep = 'parte_3_configuracion_equipo'",
   "JSON_EXTRACT(respuestasJson, '$.suma_ok')",
+  "IN ('PospagoConRecursos', 'PrepagoConRecursos')",
   "codigoEtapa = 'diagnosticoSim'",
 ]) {
   if (!lookup?.parameters?.query?.includes(marker)) fail(`Contrato de entrada incompleto: ${marker}`);
