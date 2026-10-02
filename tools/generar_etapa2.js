@@ -589,7 +589,7 @@ const absoluteBase = (candidate) => {
   }
   return origin + basePath;
 };
-const workflowSession = raw('workflow_session') || '';
+const workflowSession = String(raw('workflow_session') || raw('__workflow_session') || '').trim();
 const publicBase = absoluteBase(($json && $json.webhookUrl) || '') || absoluteBase($execution.resumeUrl || '');
 const handoffUrl = outcome === 'continuar_parte_3' && publicBase
   ? publicBase.replace(/\\\/$/, '') + '/webhook/etb-form-parte-3?workflow_session=' + encodeURIComponent(workflowSession)

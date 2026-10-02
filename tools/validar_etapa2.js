@@ -65,14 +65,14 @@ for (const node of functional) {
 }
 
 const terminals = functional.filter((node) => (outgoing.get(node.name) || []).length === 0).map((node) => node.name).sort();
-const expectedTerminals = ['Redirigir a Etapa 3', 'Responder Cierre Etapa 2', 'Responder Contexto Invalido', 'Responder Error Persistencia Etapa 2'].sort();
+const expectedTerminals = ['Enviar Cierre Sin Recursos', 'Redirigir a Etapa 3', 'Responder Cierre Etapa 2', 'Responder Contexto Invalido', 'Responder Error Persistencia Etapa 2'].sort();
 if (JSON.stringify(terminals) !== JSON.stringify(expectedTerminals)) fail(`Terminales inesperados: ${terminals.join(', ')}`);
 
 const reverse = new Map([...nodes.keys()].map((name) => [name, []]));
 for (const [target, edges] of incoming) reverse.set(target, edges.map((edge) => ({ node: edge.node })));
 const reachesSave = traverse('Responder Cierre Etapa 2', reverse);
 for (const node of functional) {
-  if (!reachesSave.has(node.name) && !['HTML Contexto Invalido', 'Responder Contexto Invalido', 'HTML Error Persistencia Etapa 2', 'Responder Error Persistencia Etapa 2', 'Redirigir a Etapa 3'].includes(node.name)) {
+  if (!reachesSave.has(node.name) && !['Form Cierre Sin Recursos', 'Enviar Cierre Sin Recursos', 'HTML Contexto Invalido', 'Responder Contexto Invalido', 'HTML Error Persistencia Etapa 2', 'Responder Error Persistencia Etapa 2', 'Redirigir a Etapa 3'].includes(node.name)) {
     fail(`Nodo sin camino al guardado: ${node.name}`);
   }
 }
@@ -90,7 +90,9 @@ for (const form of forms) {
   if (cfg.rendererVersion !== 'etapa2-v1') fail(`Renderer incorrecto: ${form.name}`);
   if (cfg.startPath !== 'etb-form-parte-2') fail(`Webhook de retorno incorrecto: ${form.name}`);
   if (!cfg.field || !Array.isArray(cfg.options) || !cfg.options.length) fail(`Formulario incompleto: ${form.name}`);
-  if (cfg.finishMode === 'complete' && (!cfg.outcome || !cfg.nextStep || !cfg.finishToStart)) fail(`Cierre incompleto: ${form.name}`);
+  const conditionalQrClose = form.name === 'Form Confirmar Funcionalidad Post QR' &&
+    cfg.finishToStartWhen?.servicio_post_qr === 'Si' && cfg.handoffWhen?.servicio_post_qr === 'Si';
+  if (cfg.finishMode === 'complete' && !conditionalQrClose && (!cfg.outcome || !cfg.nextStep || !cfg.finishToStart)) fail(`Cierre incompleto: ${form.name}`);
 
   try {
     const render = new Function('$execution', '$json', form.parameters.jsCode);
@@ -110,7 +112,8 @@ for (const form of forms) {
       }
       if (cfg.finishMode === 'complete' && !html.includes('var finishComplete=true')) fail(`${form.name} no cierra sin redirección`);
       if (html.includes('max-width:1040px') || html.includes('max-width:1100px')) fail(`${form.name} conserva ampliación excesiva de escritorio`);
-      if (cfg.allowBack && !html.includes('name="__back"')) fail(`${form.name} no renderiza Volver`);
+      if (cfg.allowBack && form.name !== 'Form Cierre Sin Recursos' && !html.includes('name="__back"')) fail(`${form.name} no renderiza Volver`);
+      if (form.name === 'Form Cierre Sin Recursos' && !html.includes('id="backButton"')) fail(`${form.name} no renderiza Volver local`);
       if (!cfg.allowBack && html.includes('name="__back"')) fail(`${form.name} renderiza Volver indebidamente`);
       for (const option of cfg.options) {
         if (!html.includes(`value="${option.value}"`)) fail(`${form.name} no renderiza ${option.value}`);
@@ -126,9 +129,9 @@ for (const form of forms) {
   const send = nodes.get(sendName);
   const wait = nodes.get(waitName);
   if (!send || send.type !== 'n8n-nodes-base.respondToWebhook') fail(`Falta ${sendName}`);
-  if (!wait || wait.type !== 'n8n-nodes-base.wait') fail(`Falta ${waitName}`);
+  if (form.name !== 'Form Cierre Sin Recursos' && (!wait || wait.type !== 'n8n-nodes-base.wait')) fail(`Falta ${waitName}`);
   if (send?.parameters.responseBody !== '={{ $json.html_response }}') fail(`HTML no mapeado en ${sendName}`);
-  if (wait && (wait.parameters.resume !== 'webhook' || wait.parameters.responseMode !== 'responseNode')) fail(`Espera incorrecta en ${waitName}`);
+  if (form.name !== 'Form Cierre Sin Recursos' && wait && (wait.parameters.resume !== 'webhook' || wait.parameters.responseMode !== 'responseNode')) fail(`Espera incorrecta en ${waitName}`);
 }
 
 if (forms.length !== 10) fail(`Cantidad inesperada de formularios: ${forms.length}`);
@@ -142,7 +145,6 @@ const expectedBack = {
   'IF Volver Escalar CRM BAM': 'Form Estado NIP',
   'IF Volver Escalar Gestor NIP': 'Form Estado NIP',
   'IF Volver Validar SUMA': 'Form Linea Portada',
-  'IF Volver Cierre Sin Recursos': 'Form Validar SUMA',
 };
 for (const [name, expected] of Object.entries(expectedBack)) {
   const condition = nodes.get(name)?.parameters?.conditions?.conditions?.[0];
@@ -157,12 +159,14 @@ function target(name, branch) {
 
 function simulate(scenario) {
   let current = 'IF Tipo SIM eSIM';
-  let query = { workflow_session: `audit-${scenario.name.replace(/\W+/g, '-')}`, tipo_sim: scenario.tipo_sim };
+  // Es el nombre enviado por hiddenInputs(), no el alias interno de MySQL.
+  let query = { __workflow_session: `audit-${scenario.name.replace(/\W+/g, '-')}`, tipo_sim: scenario.tipo_sim };
   const answerIndex = {};
   const visited = [];
   for (let guard = 0; guard < 140; guard += 1) {
     visited.push(current);
     if (current === 'Guardar Etapa 2 MySQL') return { query, visited };
+    if (current === 'Enviar Cierre Sin Recursos') return { query, visited };
     const node = nodes.get(current);
     if (!node) throw new Error(`Nodo inexistente: ${current}`);
     if (formConfig.has(current)) {
@@ -248,6 +252,7 @@ for (const scenario of scenarios) {
     if (prepared.resultado_etapa_2 !== scenario.outcome) fail(`${scenario.name}: resultado ${prepared.resultado_etapa_2}`);
     if (prepared.next_step !== scenario.next) fail(`${scenario.name}: next_step ${prepared.next_step}`);
     if (prepared.tipo_sim !== scenario.tipo_sim) fail(`${scenario.name}: perdió tipo_sim`);
+    if (prepared.workflow_session !== simulation.query.__workflow_session) fail(`${scenario.name}: perdió la sesión enviada por el formulario`);
     if (prepared.codigo_flujo !== 'ningunServicioFunciona' || prepared.codigo_etapa !== 'diagnosticoSim' || prepared.numero_etapa !== 2) {
       fail(`${scenario.name}: contrato del log general incorrecto`);
     }
@@ -331,7 +336,7 @@ if (JSON.stringify(sumaCfg?.options?.map((option) => [option.value, option.label
   fail('Validar SUMA no muestra las tres opciones operativas solicitadas');
 }
 if (sumaCfg?.handoffPath !== 'etb-form-parte-2-continuar' ||
-    JSON.stringify(sumaCfg?.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos'])) {
+    JSON.stringify(sumaCfg?.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos', 'PrepagoSinRecursos'])) {
   fail('Validar SUMA no publica la ruta positiva en el webhook puente');
 }
 const sumaCode = nodes.get('Form Validar SUMA')?.parameters?.jsCode || '';
@@ -354,6 +359,15 @@ if (noResourcesCfg?.escalationTemplate ||
     noResourcesCode.includes('copyEscalationTemplate') ||
     noResourcesCode.includes('Ver plantilla de escalamiento')) {
   fail('El cierre sin recursos todavía muestra una plantilla de escalamiento');
+}
+if (!noResourcesCode.includes('$json.webhookUrl') ||
+    !noResourcesCode.includes('window.history.back()') ||
+    nodes.has('Espera Cierre Sin Recursos') ||
+    nodes.has('IF Volver Cierre Sin Recursos') ||
+    target('Preparar Handoff SQL y Continuidad', 0) !== 'IF Mostrar Cierre Sin Recursos' ||
+    target('IF Mostrar Cierre Sin Recursos', 0) !== 'Form Cierre Sin Recursos' ||
+    target('IF Mostrar Cierre Sin Recursos', 1) !== 'Preparar Registro Etapa 2 SQL') {
+  fail('El cierre sin recursos todavía depende de un webhook-waiting consumido');
 }
 const qrManageCfg = formConfig.get('Form Gestionar QR');
 const qrManageCode = nodes.get('Form Gestionar QR')?.parameters?.jsCode || '';

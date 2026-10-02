@@ -41,8 +41,9 @@ el mismo `workflowSession` y diferente `codigoEtapa`.
   menos de 24 horas se reutiliza; al cumplirlas se registra obligatoriamente el
   escalamiento al gestor. Esta pantalla usa una disposición compacta vertical
   para mantener la misma jerarquía visual del escalamiento.
-- El escalamiento de sincronización SUMA solo admite
-  `Escalamiento realizado`.
+- SUMA continúa a la etapa 3 cuando existen recursos pospago o prepago. Cuando
+  faltan recursos prepago, usa un cierre estable sin `webhook-waiting`, permite
+  volver localmente y registra `no_aplica_sin_recursos`.
 - En la etapa 3, `Falla en SMS` usa la misma ruta de soporte que
   `Falla en llamadas`.
 - Las eSIM omiten cualquier prueba cruzada en otro dispositivo. Su reinicio usa
@@ -156,6 +157,19 @@ la etapa 2 solicita confirmar la funcionalidad del servicio:
 - Si el QR ya cumplió 24 horas sin funcionar, se presenta directamente el
   escalamiento al gestor.
 
+La etapa 2 acepta `__workflow_session`, tal como lo envían los formularios,
+y conserva esa sesión al guardar. Los cierres QR, NIP y CRM BAM usan el webhook
+estable `etb-form-parte-2-continuar`; un reintento no reutiliza un Wait terminado.
+La interfaz confirma el cierre solo después de recibir `OK` del guardado.
+Si el guardado falla, conserva las respuestas y permite reintentar. El detalle
+técnico queda en `persistence_diagnostic` de la ejecución, no en la pantalla del
+asesor. No se oculta un fallo ni se presenta una gestión no guardada como exitosa.
+
+Después de actualizar esta versión, importa y publica nuevamente la parte 2.
+Prueba con una gestión nueva; las ejecuciones Wait anteriores pueden conservar
+el código de la versión con la que comenzaron. Las pruebas locales no sustituyen
+la comprobación del guardado en la instancia productiva de n8n.
+
 ## Plantilla de escalamiento
 
 Las salidas incluyen una plantilla desplegable y un botón para copiarla. El
@@ -223,6 +237,7 @@ node tools/validar_etapa2.js
 node tools/validar_etapa3.js
 node tools/validar_integracion.js
 node tools/validar_plantillas_escalamiento.js
+node tools/validar_cierre_etapa2.js
 ```
 
 Si se regeneran los workflows con herramientas antiguas, vuelve a aplicar el

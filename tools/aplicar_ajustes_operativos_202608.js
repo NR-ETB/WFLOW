@@ -674,13 +674,8 @@ function adjustStageTwo(workflow) {
 
   const noResourcesForm = renameNode(workflow, 'Form Escalar Gestor SUMA', 'Form Cierre Sin Recursos');
   const noResourcesSend = renameNode(workflow, 'Enviar Escalar Gestor SUMA', 'Enviar Cierre Sin Recursos');
-  const noResourcesWait = renameNode(workflow, 'Espera Escalar Gestor SUMA', 'Espera Cierre Sin Recursos');
-  const noResourcesBack = renameNode(workflow, 'IF Volver Escalar Gestor SUMA', 'IF Volver Cierre Sin Recursos');
   noResourcesForm.id = 'etapa2-form-cierre-sin-recursos-20260922';
   noResourcesSend.id = 'etapa2-enviar-cierre-sin-recursos-20260922';
-  noResourcesWait.id = 'etapa2-espera-cierre-sin-recursos-20260922';
-  noResourcesWait.webhookId = 'etapa2-cierre-sin-recursos-20260922';
-  noResourcesBack.id = 'etapa2-if-volver-cierre-sin-recursos-20260922';
   patchCfg(noResourcesForm, {
     field: 'cierre_sin_recursos_ok',
     title: 'Servicio sin {accent}',
@@ -697,9 +692,7 @@ function adjustStageTwo(workflow) {
     nextStep: 'fin_etapa_2',
   });
   removeEscalationTemplate(noResourcesForm);
-  chain(workflow, 'Form Cierre Sin Recursos', 'Enviar Cierre Sin Recursos', 'Espera Cierre Sin Recursos', 'IF Volver Cierre Sin Recursos');
-  setTarget(workflow, 'IF Volver Cierre Sin Recursos', 0, 'Form Validar SUMA');
-  setTarget(workflow, 'IF Volver Cierre Sin Recursos', 1, 'Preparar Registro Etapa 2 SQL');
+  chain(workflow, 'Form Cierre Sin Recursos', 'Enviar Cierre Sin Recursos');
   const sumaValidation = get(workflow, 'Form Validar SUMA');
   patchCfg(sumaValidation, {
     question: 'ESTADO DE LA LÍNEA Y LOS RECURSOS',
@@ -710,7 +703,7 @@ function adjustStageTwo(workflow) {
       { value: 'PrepagoSinRecursos', label: 'Activo sin recursos o recursos incompletos (prepago)' },
     ],
     handoffWhen: {
-      suma_ok: ['PospagoConRecursos', 'PrepagoConRecursos'],
+      suma_ok: ['PospagoConRecursos', 'PrepagoConRecursos', 'PrepagoSinRecursos'],
     },
   });
   let sumaCode = sumaValidation.parameters.jsCode;
@@ -724,6 +717,39 @@ function adjustStageTwo(workflow) {
   sumaDecision.parameters.conditions.conditions[0].rightValue = 'PrepagoSinRecursos';
   setTarget(workflow, 'IF SUMA Activo y Recursos', 0, 'Form Cierre Sin Recursos');
   setTarget(workflow, 'IF SUMA Activo y Recursos', 1, 'Preparar Registro Etapa 2 SQL');
+
+  let noResourcesCode = noResourcesForm.parameters.jsCode;
+  noResourcesCode = noResourcesCode
+    .replace('const resumeUrl = $execution.resumeUrl;', 'const resumeUrl = ($json && $json.webhookUrl) ? $json.webhookUrl : $execution.resumeUrl;')
+    .replace('type="submit" name="__back" value="1" formnovalidate', 'type="button" id="backButton"')
+    .replace(
+      'if(!form)return;form.querySelectorAll("button[type=submit]")',
+      'if(!form)return;var backButton=document.getElementById("backButton");if(backButton)backButton.addEventListener("click",function(){window.history.back();});form.querySelectorAll("button[type=submit]")',
+    );
+  noResourcesForm.parameters.jsCode = noResourcesCode;
+  removeNodes(workflow, [
+    'Espera Escalar Gestor SUMA', 'IF Volver Escalar Gestor SUMA',
+    'Espera Cierre Sin Recursos', 'IF Volver Cierre Sin Recursos',
+  ]);
+
+  let noResourcesBridge = workflow.nodes.find((node) => node.name === 'IF Mostrar Cierre Sin Recursos');
+  if (!noResourcesBridge) {
+    noResourcesBridge = clone(get(workflow, 'IF SUMA Activo y Recursos'));
+    noResourcesBridge.id = 'etapa2-if-mostrar-cierre-sin-recursos-20260929';
+    noResourcesBridge.name = 'IF Mostrar Cierre Sin Recursos';
+    noResourcesBridge.position = [2600, 520];
+    workflow.nodes.push(noResourcesBridge);
+  }
+  noResourcesBridge.parameters.conditions.conditions[0] = {
+    id: 'cond-if-mostrar-cierre-sin-recursos-20260929',
+    leftValue: "={{ ($json.query.suma_ok || '') + ':' + ($json.query.cierre_sin_recursos_ok || '') }}",
+    rightValue: 'PrepagoSinRecursos:',
+    operator: { type: 'string', operation: 'equals', name: 'filter.operator.equals' },
+  };
+  setTarget(workflow, 'Preparar Handoff SQL y Continuidad', 0, 'IF Mostrar Cierre Sin Recursos');
+  setTarget(workflow, 'IF Mostrar Cierre Sin Recursos', 0, 'Form Cierre Sin Recursos');
+  setTarget(workflow, 'IF Mostrar Cierre Sin Recursos', 1, 'Preparar Registro Etapa 2 SQL');
+  workflow.connections['Enviar Cierre Sin Recursos'] = { main: [] };
   addEscalationTemplate(get(workflow, 'Form Escalar Gestor QR'), escalationTemplateQrExpired);
   const nipEscalation = get(workflow, 'Form Escalar Gestor NIP');
   patchCfg(nipEscalation, {
@@ -760,8 +786,54 @@ function adjustStageTwo(workflow) {
       "  qr_estado: rutaVirtual ? raw('qr_estado') : null,\n  servicio_post_qr: rutaVirtual ? raw('servicio_post_qr') : null,",
     );
   }
+  // Los formularios conservan __workflow_session, no workflow_session.
+  // No generar otra sesión: debe ser la misma que se guardó en la etapa 1.
+  code = code.replace(
+    "const workflowSession = raw('workflow_session') || '';",
+    "const workflowSession = String(raw('workflow_session') || raw('__workflow_session') || '').trim();",
+  );
+  code = code.replace(
+    "(raw('gestor_qr_ok') ? 'gestor_qr_vencido' :",
+    "(raw('servicio_post_qr') === 'Si' ? 'servicio_normalizado_qr' : raw('gestor_qr_ok') ? 'gestor_qr_vencido' :",
+  );
   prepare.parameters.jsCode = code;
-  workflow.versionId = 'etapa2-v7-cierre-recursos-20260922';
+
+  // Los cierres no deben depender de una URL Wait consumida al reintentar.
+  patchCfg(confirmService, {
+    handoffPath: 'etb-form-parte-2-continuar',
+    handoffWhen: { servicio_post_qr: 'Si' },
+    finishToStartWhen: { servicio_post_qr: 'Si' },
+    finishMode: 'complete',
+  });
+  for (const name of ['Form Escalar Gestor QR', 'Form Escalar CRM BAM', 'Form Escalar Gestor NIP']) {
+    const form = get(workflow, name);
+    const { cfg } = cfgOf(form);
+    patchCfg(form, {
+      handoffPath: 'etb-form-parte-2-continuar',
+      handoffWhen: { [cfg.field]: 'Si' },
+    });
+  }
+  for (const form of workflow.nodes.filter((node) => node.name.startsWith('Form '))) {
+    const { cfg } = cfgOf(form);
+    if (!form.parameters.jsCode.includes('window.addEventListener("pageshow"')) {
+      const restore = 'window.addEventListener("pageshow",function(){if(!submitBtn)return;submitBtn.disabled=false;submitBtn.setAttribute("aria-disabled","false");form.dataset.intent="";var text=submitBtn.querySelector(".btn-text");if(text)text.textContent=' + JSON.stringify(cfg.buttonLabel || 'Continuar') + ';});';
+      form.parameters.jsCode = form.parameters.jsCode.replace(
+        'if(!form)return;', 'if(!form)return;' + restore,
+      );
+    }
+    form.parameters.jsCode = form.parameters.jsCode.replaceAll(
+      'No fue posible finalizar el proceso. Verifica la ejecución en n8n e inténtalo nuevamente.',
+      'No pudimos confirmar el guardado. Tus respuestas siguen en esta pantalla. Reintenta; si continúa, informa la referencia de la gestión a soporte.',
+    );
+    form.parameters.jsCode = form.parameters.jsCode.replace(
+      'if(!response.ok)throw new Error("HTTP "+response.status);if(finishComplete',
+      'if(!response.ok)throw new Error("HTTP "+response.status);return response.text();}).then(function(body){if(body.trim()!=="OK")throw new Error("Guardado no confirmado");if(finishComplete',
+    );
+  }
+  get(workflow, 'HTML Error Persistencia Etapa 2').parameters.jsCode = fs.readFileSync(
+    path.join(__dirname, 'ui_error_persistencia_etapa2.js'), 'utf8',
+  );
+  workflow.versionId = 'etapa2-v9-sesion-cierre-qr-20261001';
 
   for (const note of workflow.nodes.filter((node) => node.type === 'n8n-nodes-base.stickyNote')) {
     if (typeof note.parameters?.content !== 'string') continue;

@@ -223,7 +223,7 @@ if (nodes2.get('Consultar Contexto Etapa 1 MySQL')?.onError !== 'continueErrorOu
     !reaches(stage2, 'HTML Error Persistencia Etapa 2', 'Responder Error Persistencia Etapa 2')) {
   fail('La etapa 2 no responde de forma controlada ante errores MySQL.');
 } else {
-  ok('Los errores MySQL de etapa 2 responden con un diagnóstico visible');
+  ok('Los errores MySQL de etapa 2 tienen respuesta controlada');
 }
 
 if (nodes2.has('Form Confirmar Servicio Normalizado') || nodes2.has('Espera Confirmar Servicio Normalizado')) {
@@ -250,7 +250,7 @@ const sumaForm = nodes2.get('Form Validar SUMA');
 const sumaCfgMatch = String(sumaForm?.parameters?.jsCode || '').match(/^const cfg = (\{.*\});$/m);
 const sumaCfg = sumaCfgMatch ? JSON.parse(sumaCfgMatch[1]) : {};
 if (sumaCfg.handoffPath !== 'etb-form-parte-2-continuar' ||
-    JSON.stringify(sumaCfg.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos'])) {
+    JSON.stringify(sumaCfg.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos', 'PrepagoSinRecursos'])) {
   fail('El formulario SUMA no entrega su respuesta positiva al webhook puente.');
 }
 try {
@@ -308,6 +308,60 @@ try {
   }
 } catch (error) {
   fail(`No fue posible simular el webhook puente de SUMA: ${error.message}`);
+}
+try {
+  const noResourcesForm = nodes2.get('Form Cierre Sin Recursos');
+  const noResourcesHtml = new Function('$execution', '$json', noResourcesForm.parameters.jsCode)(
+    { id: 'cierre-sin-recursos', mode: 'production', resumeUrl: 'https://n8n.example.test/webhook-waiting/consumido' },
+    {
+      webhookUrl: 'https://n8n.example.test/webhook/etb-form-parte-2-continuar',
+      query: {
+        workflow_session: 'sesion-cierre-sin-recursos',
+        tipo_sim: 'Fisica',
+        suma_ok: 'PrepagoSinRecursos',
+      },
+    },
+  )?.[0]?.json?.html_response || '';
+  if (!noResourcesHtml.includes('action="https://n8n.example.test/webhook/etb-form-parte-2-continuar"') ||
+      noResourcesHtml.includes('action="https://n8n.example.test/webhook-waiting/consumido"') ||
+      !noResourcesHtml.includes('id="backButton"') ||
+      !String(noResourcesForm.parameters.jsCode).includes('window.history.back()')) {
+    fail('El cierre sin recursos todavía usa la ejecución finalizada o no permite volver localmente.');
+  }
+  if (nodes2.has('Espera Cierre Sin Recursos') || nodes2.has('IF Volver Cierre Sin Recursos')) {
+    fail('El cierre sin recursos conserva el webhook-waiting consumible.');
+  }
+  const bridgeIf = nodes2.get('IF Mostrar Cierre Sin Recursos');
+  if (bridgeIf?.parameters?.conditions?.conditions?.[0]?.rightValue !== 'PrepagoSinRecursos:' ||
+      !outgoing(stage2, 'Preparar Handoff SQL y Continuidad').includes('IF Mostrar Cierre Sin Recursos') ||
+      !outgoing(stage2, 'IF Mostrar Cierre Sin Recursos').includes('Form Cierre Sin Recursos') ||
+      !outgoing(stage2, 'IF Mostrar Cierre Sin Recursos').includes('Preparar Registro Etapa 2 SQL')) {
+    fail('El webhook puente no separa visual y confirmación del cierre sin recursos.');
+  }
+  const preparedNoResources = new Function('$json', '$execution', prepare2.parameters.jsCode)(
+    {
+      query: {
+        workflow_session: 'sesion-cierre-sin-recursos',
+        tipo_sim: 'Fisica',
+        suma_ok: 'PrepagoSinRecursos',
+        cierre_sin_recursos_ok: 'Si',
+        __outcome: 'no_aplica_sin_recursos',
+        __next_step: 'fin_etapa_2',
+      },
+      webhookUrl: 'https://n8n.example.test/webhook/etb-form-parte-2-continuar',
+    },
+    { id: 'integracion-cierre-sin-recursos', resumeUrl: '' },
+  )?.[0]?.json;
+  if (preparedNoResources?.resultado_etapa_2 !== 'no_aplica_sin_recursos' ||
+      preparedNoResources?.next_step !== 'fin_etapa_2' ||
+      JSON.parse(preparedNoResources?.respuestas_json || '{}').suma_ok !== 'PrepagoSinRecursos') {
+    fail('El cierre sin recursos no queda registrado en el log general.');
+  }
+  if (!errors.some((error) => error.includes('cierre sin recursos'))) {
+    ok('Cierre sin recursos usa webhook estable, permite volver y registra el resultado');
+  }
+} catch (error) {
+  fail(`No fue posible simular el cierre sin recursos: ${error.message}`);
 }
 try {
   const prepared2 = new Function('$json', '$execution', prepare2.parameters.jsCode)(
