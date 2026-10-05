@@ -1,10 +1,81 @@
 # Ningún servicio funciona · flujo guiado completo
 
-Este repositorio contiene tres workflows independientes de n8n que se presentan
-al usuario como un solo recorrido. Las tres partes comparten `workflowSession` y
-registran su trazabilidad en una única tabla general de MySQL.
+Este repositorio contiene un diagnóstico de tres workflows independientes de
+n8n que se presentan al usuario como un solo recorrido, además de un flujo 0
+independiente para el registro inicial. Las tres partes del diagnóstico comparten
+`workflowSession` y registran su trazabilidad en una única tabla general de MySQL.
 
 ## Arquitectura
+
+### Flujo 0 independiente
+
+`Flujo 0 - Registro Inicial.json` es un registro inicial nuevo, separado del
+diagnóstico existente. Por ahora solicita únicamente:
+
+- Usuario del asesor (no su contraseña).
+- Número de conexión.
+- PQR (número o referencia).
+
+Los tres campos son obligatorios, con un máximo de 100 caracteres. Los
+identificadores se conservan como texto para no perder ceros iniciales. Se envían
+por POST y no se incluyen en la URL. La validación se realiza tanto en la pantalla
+como en el servidor.
+
+El registro usa dos tablas: `CRM.GestionesFlujos` conserva el registro original
+por sesión y `CRM.GestionesFlujosLog` conserva su trazabilidad. En ambas están
+`usuarioAsesor`, `numeroConexion` y `pqr`, como texto de hasta 100 caracteres.
+El log también conserva los tres valores en `respuestasJson` y `contextoJson`,
+con `codigoFlujo = inicioGestion`, `codigoEtapa = registroInicial` y `numeroEtapa = 0`.
+Cada apertura genera su propia sesión y los reintentos conservan esa referencia.
+El usuario escrito es un dato operativo, no una autenticación.
+
+Antes de importar esta versión, respalda la base y ejecuta
+`database/02_DatosInicialesGestion_Workbench.sql` en MySQL 8.4+, después de la
+migración 00. No vuelvas a ejecutar la migración 00 sobre una base ya convertida.
+La migración 02 conserva el historial, recupera registros iniciales existentes
+en JSON y crea las columnas, vistas, triggers y `CRM.RegistrarInicioGestion`.
+Los cambios DDL no se revierten con un rollback; realiza la instalación completa
+en una ventana de mantenimiento y detente si una prevalidación falla.
+
+El procedimiento guarda el registro principal y su log en una sola transacción.
+Si alguna escritura falla, ambas se revierten. Debe llamarse sin una transacción
+externa. Un reintento conserva los datos originales de la sesión, no los reemplaza.
+La pantalla muestra los valores confirmados por la base, no asume que se guardaron.
+Si el guardado falla, vuelve al formulario con los datos conservados.
+Los triggers rechazan nuevos registros del flujo 0 que pretendan escribir solo
+en el log sin registro principal. Por eso es obligatorio publicar el JSON nuevo
+después de aplicar la migración; no dejes operativa la versión anterior del flujo 0.
+
+Los triggers copian los datos iniciales a cualquier etapa que use el mismo
+`workflowSession`. Los registros históricos sin flujo 0 mantienen esas columnas
+en NULL: no se inventa información. Los flujos 1–3 siguen independientes; cuando
+se conecten al flujo 0 deberán conservar su sesión para recibir estos datos.
+Las vistas generales son `CRM.VwGestionesFlujosTrazabilidad` y
+`CRM.VwGestionesFlujosResumen`. Las vistas NSF existentes no se reemplazan.
+Después de instalar y probar el registro, ejecuta las consultas de control de
+`database/03_DatosInicialesGestion_Consultas.sql`. Permiten detectar registros
+sin log inicial y diferencias entre los datos originales y sus copias, sin
+modificar la base.
+
+Importa el JSON, asigna la credencial CRM a `Guardar Registro Inicial MySQL` y
+asegura permisos EXECUTE sobre `RegistrarInicioGestion`, además de SELECT,
+INSERT y UPDATE sobre las dos tablas. La instalación de la migración requiere
+permisos para crear/alterar tablas, rutinas, triggers y vistas. Publica el workflow.
+Entrada productiva: `/webhook/etb-form-inicial`. El formulario
+envía a `/webhook/etb-form-inicial-guardar`. Usa las rutas productivas para probar
+el recorrido completo con ambos webhooks publicados. Restringe el acceso al
+personal autorizado mediante la configuración de la instancia. Este flujo no
+redirige a las partes 1–3 ni modifica sus registros.
+
+Generación y validación local:
+
+```powershell
+node tools/generar_flujo0.js
+node tools/validar_flujo0.js
+node tools/validar_datos_iniciales_db.js
+```
+
+### Diagnóstico existente
 
 ```text
 Ningún servicio funciona - 1 ─┐
@@ -51,11 +122,14 @@ el mismo `workflowSession` y diferente `codigoEtapa`.
 
 ## Archivos principales
 
+- `Flujo 0 - Registro Inicial.json`
 - `Ningun Servicio Funciona - 1.json`
 - `Ningun Servicio Funciona - 2.json`
 - `Ningun Servicio Funciona - 3.json`
 - `database/00_GestionesFlujosLog_Workbench.sql`
 - `database/01_GestionesFlujosLog_Consultas.sql`
+- `database/02_DatosInicialesGestion_Workbench.sql`
+- `database/03_DatosInicialesGestion_Consultas.sql`
 - `tools/adaptar_log_general.js`
 
 ## Instalación en la base
