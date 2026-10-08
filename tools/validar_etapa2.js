@@ -159,13 +159,13 @@ function target(name, branch) {
 
 function simulate(scenario) {
   let current = 'IF Tipo SIM eSIM';
-  // Es el nombre enviado por hiddenInputs(), no el alias interno de MySQL.
+  // Es el nombre enviado por hiddenInputs(), no el alias interno de PostgreSQL.
   let query = { __workflow_session: `audit-${scenario.name.replace(/\W+/g, '-')}`, tipo_sim: scenario.tipo_sim };
   const answerIndex = {};
   const visited = [];
   for (let guard = 0; guard < 140; guard += 1) {
     visited.push(current);
-    if (current === 'Guardar Etapa 2 MySQL') return { query, visited };
+    if (current === 'Guardar Etapa 2 PostgreSQL') return { query, visited };
     if (current === 'Enviar Cierre Sin Recursos') return { query, visited };
     const node = nodes.get(current);
     if (!node) throw new Error(`Nodo inexistente: ${current}`);
@@ -268,54 +268,57 @@ for (const form of forms) {
   if (!coverage.has(form.name)) fail(`Ningún escenario cubre ${form.name}`);
 }
 
-const lookup = nodes.get('Consultar Contexto Etapa 1 MySQL');
-if (!lookup?.parameters?.query?.includes('WHERE workflowSession = $5')) fail('La consulta no separa el parámetro del filtro workflowSession');
+const lookup = nodes.get('Consultar Contexto Etapa 1 PostgreSQL');
+if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $5')) fail('La consulta no separa el parámetro del filtro workflowSession');
 if (JSON.stringify(lookup?.parameters?.query?.match(/\$\d+/g)) !== JSON.stringify(['$1', '$2', '$3', '$4', '$5'])) {
-  fail('Los parámetros de contexto no están en orden posicional seguro para MySQL');
+  fail('Los parámetros de contexto no están en orden posicional seguro para PostgreSQL');
 }
-if (!lookup?.parameters?.query?.includes('FROM CRM.GestionesFlujosLog')) fail('La consulta no fija CRM.GestionesFlujosLog');
-if (!lookup?.parameters?.query?.includes('DATABASE() AS esquema_credencial')) fail('La consulta no informa el esquema de la credencial');
-if (!lookup?.parameters?.query?.includes('COUNT(*) AS coincidencias')) fail('La consulta no informa coincidencias');
+if (!lookup?.parameters?.query?.includes('FROM wflow.gestiones_log')) fail('La consulta no fija wflow.gestiones_log');
+if (!lookup?.parameters?.query?.includes('current_database() AS esquema_credencial')) fail('La consulta no informa la base de la credencial');
+if (!lookup?.parameters?.query?.includes('COUNT(*)::integer AS coincidencias')) fail('La consulta no informa coincidencias');
 if (!lookup?.parameters?.query?.includes("MAX(resultado) = 'continuar_parte_2'")) fail('La consulta no audita el resultado de etapa 1');
-if (!lookup?.parameters?.query?.includes("MAX(nextStep) = 'parte_2_tipo_sim'")) fail('La consulta no audita nextStep');
-if (!lookup?.parameters?.query?.includes("JSON_EXTRACT(respuestasJson, '$.tipo_sim')")) fail('La consulta no recupera tipo_sim desde respuestasJson');
-if (!lookup?.parameters?.query?.includes("codigoEtapa = 'validacionServicio'")) fail('La consulta no limita la etapa 1 del flujo');
+if (!lookup?.parameters?.query?.includes("MAX(next_step) = 'parte_2_tipo_sim'")) fail('La consulta no audita nextStep');
+if (!lookup?.parameters?.query?.includes("respuestas_json->>'tipo_sim'")) fail('La consulta no recupera tipo_sim desde respuestasJson');
+if (!lookup?.parameters?.query?.includes("codigo_etapa = 'validacionServicio'")) fail('La consulta no limita la etapa 1 del flujo');
 if (!lookup?.parameters?.query?.includes('AS contrato_canonico')) fail('La consulta no expone contrato_canonico');
 if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.transition_mode, $json.handoff_query_json, $json.public_base, $json.workflow_session ] }}') fail('La consulta de contexto no está parametrizada');
 const normalizeHandoff = nodes.get('Normalizar Handoff a Diagnostico de Equipo');
 const prepareHandoff = nodes.get('Preparar Handoff SQL y Continuidad');
-if (!normalizeHandoff?.parameters?.jsCode?.includes('encodeURIComponent(JSON.stringify(normalizedQuery))')) fail('El contexto del handoff no se codifica antes de MySQL');
-if (!prepareHandoff?.parameters?.jsCode?.includes('decodeURIComponent(encodedQuery)')) fail('El contexto del handoff no se decodifica después de MySQL');
+if (!normalizeHandoff?.parameters?.jsCode?.includes('encodeURIComponent(JSON.stringify(normalizedQuery))')) fail('El contexto del handoff no se codifica antes de PostgreSQL');
+if (!prepareHandoff?.parameters?.jsCode?.includes('decodeURIComponent(encodedQuery)')) fail('El contexto del handoff no se decodifica después de PostgreSQL');
 
 const invalidContext = nodes.get('HTML Contexto Invalido');
 try {
-  const invalidHtml = new Function('$json', invalidContext.parameters.jsCode)({
+  const invalidHtml = new Function('$json', '$', invalidContext.parameters.jsCode)({
     workflow_session_solicitada: 'sesion-diagnostico',
     esquema_credencial: 'CRM_QA',
     coincidencias: 0,
     tipo_sim: null,
-  })?.[0]?.json?.html_response || '';
-  for (const marker of ['sesion-diagnostico', 'CRM_QA', 'CRM.GestionesFlujosLog', 'Filas encontradas:']) {
-    if (!invalidHtml.includes(marker)) fail(`Diagnóstico de acceso incompleto: ${marker}`);
+  }, () => ({ first: () => ({ json: { webhookUrl: 'https://n8n.example.test/base/webhook/etb-form-parte-2' } }) }))?.[0]?.json?.html_response || '';
+  for (const marker of ['Inicia la gestión desde el flujo 0', 'Ir al registro inicial', 'https://n8n.example.test/base/webhook/etb-form-inicial']) {
+    if (!invalidHtml.includes(marker)) fail(`Recuperación de acceso incompleta: ${marker}`);
+  }
+  for (const marker of ['CRM_QA', 'wflow.gestiones_log', 'Filas encontradas:']) {
+    if (invalidHtml.includes(marker)) fail(`Detalle técnico expuesto al asesor: ${marker}`);
   }
 } catch (error) {
   fail(`Diagnóstico de acceso inválido: ${error.message}`);
 }
 
-const save = nodes.get('Guardar Etapa 2 MySQL');
+const save = nodes.get('Guardar Etapa 2 PostgreSQL');
 const placeholders = save?.parameters?.query?.match(/\$\d+/g) || [];
 const maxPlaceholder = Math.max(...placeholders.map((value) => Number(value.slice(1))));
 const replacements = save?.parameters?.options?.queryReplacement?.match(/\$json\.[A-Za-z0-9_]+/g) || [];
-if (maxPlaceholder !== 14 || replacements.length !== 14) fail(`Contrato MySQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
-if (!save?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) fail('El guardado no fija CRM.GestionesFlujosLog');
-if (!save.parameters.query.includes('ON DUPLICATE KEY UPDATE')) fail('El guardado no es idempotente');
-if (lookup?.onError !== 'continueErrorOutput' || save?.onError !== 'continueErrorOutput') fail('Los nodos MySQL no exponen una salida controlada de error');
+if (maxPlaceholder !== 14 || replacements.length !== 14) fail(`Contrato PostgreSQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
+if (!save?.parameters?.query?.includes('INSERT INTO wflow.gestiones_log')) fail('El guardado no fija wflow.gestiones_log');
+if (!save.parameters.query.includes('ON CONFLICT')) fail('El guardado no es idempotente');
+if (lookup?.onError !== 'continueErrorOutput' || save?.onError !== 'continueErrorOutput') fail('Los nodos PostgreSQL no exponen una salida controlada de error');
 const persistenceErrorHtml = nodes.get('HTML Error Persistencia Etapa 2');
 const persistenceErrorRespond = nodes.get('Responder Error Persistencia Etapa 2');
-if (!persistenceErrorHtml?.parameters?.jsCode?.includes('CRM.GestionesFlujosLog')) fail('Falta el diagnóstico del log general en etapa 2');
-if (persistenceErrorRespond?.parameters?.options?.responseCode !== 500) fail('La respuesta de error MySQL no usa HTTP 500');
-if (!outgoing.get('Consultar Contexto Etapa 1 MySQL')?.some((edge) => edge.branch === 1 && edge.node === 'HTML Error Persistencia Etapa 2')) fail('La consulta MySQL no conecta su salida de error');
-if (!outgoing.get('Guardar Etapa 2 MySQL')?.some((edge) => edge.branch === 1 && edge.node === 'HTML Error Persistencia Etapa 2')) fail('El guardado MySQL no conecta su salida de error');
+if (!persistenceErrorHtml?.parameters?.jsCode?.includes('wflow.gestiones_log')) fail('Falta el diagnóstico del log general en etapa 2');
+if (persistenceErrorRespond?.parameters?.options?.responseCode !== 500) fail('La respuesta de error PostgreSQL no usa HTTP 500');
+if (!outgoing.get('Consultar Contexto Etapa 1 PostgreSQL')?.some((edge) => edge.branch === 1 && edge.node === 'HTML Error Persistencia Etapa 2')) fail('La consulta PostgreSQL no conecta su salida de error');
+if (!outgoing.get('Guardar Etapa 2 PostgreSQL')?.some((edge) => edge.branch === 1 && edge.node === 'HTML Error Persistencia Etapa 2')) fail('El guardado PostgreSQL no conecta su salida de error');
 
 if (nodes.has('Form Confirmar Servicio Normalizado') || nodes.has('Espera Confirmar Servicio Normalizado')) {
   fail('La etapa 2 conserva el cierre redundante de servicio normalizado');
@@ -456,12 +459,12 @@ if (!prepare?.parameters?.jsCode?.includes("'/webhook/etb-form-parte-3?workflow_
   fail('Preparar Registro Etapa 2 SQL no construye la URL de etapa 3');
 }
 
-const ddl = fs.readFileSync(path.join(root, 'database', '00_GestionesFlujosLog_Workbench.sql'), 'utf8');
+const ddl = fs.readFileSync(path.join(root, 'database', 'postgres', '00_Estructura.sql'), 'utf8');
 for (const marker of [
-  'USE CRM;', 'RENAME TABLE CRM.n8n_nsf_respuestas TO CRM.GestionesFlujosLog',
-  'ADD UNIQUE KEY uqGestionesFlujosEtapaIntento',
-  'CREATE OR REPLACE VIEW CRM.VwNsfTrazabilidad',
-  'CREATE OR REPLACE VIEW CRM.VwNsfResumen',
+  'CREATE SCHEMA IF NOT EXISTS wflow', 'CREATE TABLE IF NOT EXISTS wflow.gestiones_log',
+  'CONSTRAINT uq_log_etapa_intento UNIQUE',
+  'CREATE OR REPLACE VIEW wflow.vw_nsf_trazabilidad',
+  'CREATE OR REPLACE VIEW wflow.vw_nsf_resumen',
 ]) {
   if (!ddl.includes(marker)) fail(`DDL incompleto: ${marker}`);
 }
@@ -479,4 +482,4 @@ if (errors.length) {
 console.log('VALIDACIÓN ETAPA 2 OK');
 successes.forEach((message) => console.log(`✓ ${message}`));
 console.log(`✓ ${functional.length} nodos funcionales, ${forms.length} formularios, ${workflow.nodes.length - functional.length} notas`);
-console.log('✓ Contrato entre etapas, MySQL parametrizado y responsive verificados');
+console.log('✓ Contrato entre etapas, PostgreSQL parametrizado y responsive verificados');

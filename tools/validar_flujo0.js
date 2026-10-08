@@ -24,7 +24,7 @@ function visit(name) {
   for (const branch of workflow.connections[name]?.main || []) for (const edge of branch) visit(edge.node);
 }
 roots.forEach(visit);
-assert.equal(reached.size, nodes.size, 'Todos los nodos deben ser alcanzables');
+assert.equal(reached.size, workflow.nodes.filter(n => n.type !== 'n8n-nodes-base.stickyNote').length, 'Todos los nodos funcionales deben ser alcanzables');
 const existingPaths = [1, 2, 3].flatMap(stage => JSON.parse(fs.readFileSync(path.join(root, 'Ningun Servicio Funciona - ' + stage + '.json'), 'utf8')).nodes.filter(node => node.type === 'n8n-nodes-base.webhook').map(node => node.parameters.path));
 for (const node of workflow.nodes.filter(node => node.type === 'n8n-nodes-base.webhook')) {
   assert.ok(!existingPaths.includes(node.parameters.path));
@@ -62,15 +62,15 @@ assert.equal(prepared.workflow_session, session);
 assert.equal(prepared.numero_etapa, 0);
 assert.equal(prepared.codigo_flujo, 'inicioGestion');
 assert.deepEqual(JSON.parse(prepared.respuestas_json), valid.valores);
-const sqlNode = nodes.get('Guardar Registro Inicial MySQL');
+const sqlNode = nodes.get('Guardar Registro Inicial PostgreSQL');
 assert.equal(sqlNode.onError, 'continueErrorOutput');
-assert.equal(sqlNode.parameters.query, 'CALL CRM.RegistrarInicioGestion($1,$2,$3,$4)');
+assert.equal(sqlNode.parameters.query, 'SELECT * FROM wflow.registrar_inicio_gestion($1::text,$2::jsonb,$3::text,$4::text)');
 const replacements = new Function('$json', 'return ' + sqlNode.parameters.options.queryReplacement.slice(3, -2).trim())(prepared);
 assert.equal(replacements.length, 4);
 assert.equal(replacements[0], session);
 assert.deepEqual(JSON.parse(replacements[1]), valid.valores);
-// Misma conversión numérica usada por el nodo MySQL: el JSON debe resistirla.
-const n8nParams = replacements.map(value => Number(value) ? Number(value) : value);
+// El nodo Postgres recibe el array sin convertir identificadores a números.
+const n8nParams = replacements;
 assert.equal(JSON.parse(n8nParams[1]).numero_conexion, '0000123');
 assert.equal(JSON.parse(n8nParams[1]).pqr, '0000456');
 const reference = name => { assert.equal(name, 'Preparar Registro Inicial SQL'); return { first: () => ({ json: prepared }) }; };
@@ -89,6 +89,9 @@ const payload = '<script>alert("test")</script>';
 const dbRow = { registroConfirmado: 1, workflowSession: session, usuarioAsesor: payload, numeroConexion: '0000123', pqr: '0000456' };
 const success = run('Confirmar Registro Inicial', { data: [[dbRow], { affectedRows: 1 }] }, reference).html_response;
 assert.ok(success.includes('Datos iniciales guardados'));
+assert.ok(success.includes('href="https://n8n.example.test/base/webhook/etb-form?workflow_session=' + session + '"'));
+assert.ok(success.includes('Continuar al diagnóstico'));
+assert.ok(!success.includes('aún no está conectado'));
 assert.ok(!success.includes(payload));
 assert.ok(success.includes('&lt;script&gt;'));
 for (const result of [{ success: true }, { data: [[{ ...dbRow, workflowSession: 'otra-sesion' }]] }]) {
@@ -96,8 +99,8 @@ for (const result of [{ success: true }, { data: [[{ ...dbRow, workflowSession: 
 }
 const canonical = run('Confirmar Registro Inicial', { data: [[{ ...dbRow, usuarioAsesor: 'asesor.original', numeroConexion: '0000999' }]] }, reference).html_response;
 assert.ok(canonical.includes('asesor.original') && canonical.includes('0000999'), 'Mostrar datos originales confirmados, no datos modificados del reintento');
-assert.deepEqual(workflow.connections['Guardar Registro Inicial MySQL'].main[0].map(edge => edge.node), ['Confirmar Registro Inicial']);
-assert.deepEqual(workflow.connections['Guardar Registro Inicial MySQL'].main[1].map(edge => edge.node), ['Preparar Reintento Registro']);
+assert.deepEqual(workflow.connections['Guardar Registro Inicial PostgreSQL'].main[0].map(edge => edge.node), ['Confirmar Registro Inicial']);
+assert.deepEqual(workflow.connections['Guardar Registro Inicial PostgreSQL'].main[1].map(edge => edge.node), ['Preparar Reintento Registro']);
 assert.equal(nodes.get('Confirmar Registro Inicial').onError, 'continueErrorOutput');
 assert.deepEqual(workflow.connections['Confirmar Registro Inicial'].main[1].map(edge => edge.node), ['Preparar Reintento Registro']);
 // Ejecutar la validación de pantalla y comprobar el retorno del navegador.

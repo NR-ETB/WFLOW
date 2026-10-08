@@ -81,35 +81,35 @@ if (webhook1?.parameters?.path === 'etb-form' &&
   ok('Cinco webhooks independientes y sin colisión');
 }
 
-const lookup = nodes2.get('Consultar Contexto Etapa 1 MySQL');
+const lookup = nodes2.get('Consultar Contexto Etapa 1 PostgreSQL');
 const query = lookup?.parameters?.query || '';
 for (const token of [
-  'FROM CRM.GestionesFlujosLog',
-  'workflowSession = $5',
+  'FROM wflow.gestiones_log',
+  'workflow_session = $5',
   "MAX(resultado) = 'continuar_parte_2'",
-  "MAX(nextStep) = 'parte_2_tipo_sim'",
-  "JSON_EXTRACT(respuestasJson, '$.tipo_sim')",
-  "codigoEtapa = 'validacionServicio'",
+  "MAX(next_step) = 'parte_2_tipo_sim'",
+  "respuestas_json->>'tipo_sim'",
+  "codigo_etapa = 'validacionServicio'",
   'AS contrato_canonico',
 ]) {
   if (!query.includes(token)) fail(`Contrato SQL incompleto: falta ${token}`);
 }
 if (!errors.some((error) => error.startsWith('Contrato SQL'))) ok('Etapa 2 acepta sesiones existentes y audita el contrato de la etapa 1');
 
-const save1 = nodes1.get('Guardar Respuestas MySQL');
-const save2 = nodes2.get('Guardar Etapa 2 MySQL');
-const save3 = nodes3.get('Guardar Etapa 3 MySQL');
-if (!save1?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) {
-  fail('La etapa 1 no guarda explícitamente en CRM.GestionesFlujosLog.');
+const save1 = nodes1.get('Guardar Respuestas PostgreSQL');
+const save2 = nodes2.get('Guardar Etapa 2 PostgreSQL');
+const save3 = nodes3.get('Guardar Etapa 3 PostgreSQL');
+if (!save1?.parameters?.query?.includes('INSERT INTO wflow.gestiones_log')) {
+  fail('La etapa 1 no guarda explícitamente en wflow.gestiones_log.');
 }
-if (!save2?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) {
-  fail('La etapa 2 no guarda explícitamente en CRM.GestionesFlujosLog.');
+if (!save2?.parameters?.query?.includes('INSERT INTO wflow.gestiones_log')) {
+  fail('La etapa 2 no guarda explícitamente en wflow.gestiones_log.');
 }
-if (!save3?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) {
-  fail('La etapa 3 no guarda explícitamente en CRM.GestionesFlujosLog.');
+if (!save3?.parameters?.query?.includes('INSERT INTO wflow.gestiones_log')) {
+  fail('La etapa 3 no guarda explícitamente en wflow.gestiones_log.');
 }
 if (!errors.some((error) => error.includes('explícitamente en CRM'))) {
-  ok('Los tres workflows usan el log general calificado del esquema CRM');
+  ok('Los tres workflows usan el log general del esquema wflow');
 }
 
 function outgoing(workflow, nodeName) {
@@ -139,7 +139,7 @@ if (nodes1.has('Espera Tipo SIM') || nodes1.has('IF Volver Tipo SIM')) {
   fail('El cierre Tipo SIM conserva el Wait que generaba /webhook-waiting/undefined.');
 }
 
-if (!reaches(stage1, 'Continuar a Etapa 2', 'Guardar Respuestas MySQL')) {
+if (!reaches(stage1, 'Continuar a Etapa 2', 'Guardar Respuestas PostgreSQL')) {
   fail('El webhook puente no alcanza la persistencia de la etapa 1.');
 } else {
   ok('El webhook puente guarda la sesión antes de redirigir');
@@ -149,8 +149,8 @@ if (!reaches(stage1, 'IF Entrada Handoff Valida', 'Responder Handoff Invalido'))
   fail('El webhook puente no responde de forma controlada a entradas inválidas.');
 }
 
-if (!reaches(stage1, 'Guardar Respuestas MySQL', 'Responder Cierre Etapa 1')) {
-  fail('La rama normal de la etapa 1 no responde después de guardar en MySQL.');
+if (!reaches(stage1, 'Guardar Respuestas PostgreSQL', 'Responder Cierre Etapa 1')) {
+  fail('La rama normal de la etapa 1 no responde después de guardar en PostgreSQL.');
 } else {
   ok('Las salidas normales responden después de persistir la gestión');
 }
@@ -167,7 +167,7 @@ if (redirect1?.parameters?.respondWith !== 'redirect' ||
     !String(redirect1?.parameters?.redirectURL || '').includes('handoff_url')) {
   fail('Falta la respuesta Redirect nativa hacia la etapa 2.');
 }
-if (!reaches(stage1, 'Guardar Respuestas MySQL', 'Redirigir a Etapa 2')) {
+if (!reaches(stage1, 'Guardar Respuestas PostgreSQL', 'Redirigir a Etapa 2')) {
   fail('La salida continuar_parte_2 no alcanza la redirección nativa.');
 }
 if (!errors.some((error) => error.includes('URL absoluta') || error.includes('Redirect nativa') || error.includes('redirección nativa'))) {
@@ -207,23 +207,23 @@ try {
 }
 if (!errors.some((error) => error.includes('handoff'))) ok('Handoff eSIM simulado con URL absoluta y sesión intacta');
 
-if (!reaches(stage2, 'Apertura Etapa 2', 'Consultar Contexto Etapa 1 MySQL')) {
+if (!reaches(stage2, 'Apertura Etapa 2', 'Consultar Contexto Etapa 1 PostgreSQL')) {
   fail('La apertura de etapa 2 no consulta la etapa 1.');
 } else {
-  ok('La etapa 2 recupera la gestión anterior desde MySQL');
+  ok('La etapa 2 recupera la gestión anterior desde PostgreSQL');
 }
 
-if (!reaches(stage2, 'Guardar Etapa 2 MySQL', 'Responder Cierre Etapa 2')) {
-  fail('La etapa 2 no confirma al navegador después de guardar en MySQL.');
+if (!reaches(stage2, 'Guardar Etapa 2 PostgreSQL', 'Responder Cierre Etapa 2')) {
+  fail('La etapa 2 no confirma al navegador después de guardar en PostgreSQL.');
 } else {
   ok('La etapa 2 responde al navegador después de persistir el cierre');
 }
-if (nodes2.get('Consultar Contexto Etapa 1 MySQL')?.onError !== 'continueErrorOutput' ||
-    nodes2.get('Guardar Etapa 2 MySQL')?.onError !== 'continueErrorOutput' ||
+if (nodes2.get('Consultar Contexto Etapa 1 PostgreSQL')?.onError !== 'continueErrorOutput' ||
+    nodes2.get('Guardar Etapa 2 PostgreSQL')?.onError !== 'continueErrorOutput' ||
     !reaches(stage2, 'HTML Error Persistencia Etapa 2', 'Responder Error Persistencia Etapa 2')) {
-  fail('La etapa 2 no responde de forma controlada ante errores MySQL.');
+  fail('La etapa 2 no responde de forma controlada ante errores PostgreSQL.');
 } else {
-  ok('Los errores MySQL de etapa 2 tienen respuesta controlada');
+  ok('Los errores PostgreSQL de etapa 2 tienen respuesta controlada');
 }
 
 if (nodes2.has('Form Confirmar Servicio Normalizado') || nodes2.has('Espera Confirmar Servicio Normalizado')) {
@@ -232,7 +232,7 @@ if (nodes2.has('Form Confirmar Servicio Normalizado') || nodes2.has('Espera Conf
 if (nodes2.has('Form Iniciar Etapa 2') || nodes2.has('Espera Iniciar Etapa 2')) {
   fail('La etapa 2 conserva una pantalla intermedia antes de las decisiones.');
 }
-if (!reaches(stage2, 'Continuar directamente a Diagnostico de Equipo', 'Guardar Etapa 2 MySQL')) {
+if (!reaches(stage2, 'Continuar directamente a Diagnostico de Equipo', 'Guardar Etapa 2 PostgreSQL')) {
   fail('El webhook puente de SUMA no alcanza la persistencia.');
 }
 if (!reaches(stage2, 'Continuar directamente a Diagnostico de Equipo', 'Redirigir a Etapa 3')) {
@@ -288,7 +288,7 @@ try {
     query: { __workflow_session: 'sesion-etapa3-prueba', tipo_sim: 'Fisica', suma_ok: 'PospagoConRecursos' },
   })?.[0]?.json;
   if (String(normalized?.handoff_query_json || '').includes(',')) {
-    fail('El payload del handoff conserva comas incompatibles con Query Parameters de MySQL.');
+    fail('El payload del handoff conserva comas incompatibles con Query Parameters de PostgreSQL.');
   }
   const decodedHandoff = JSON.parse(decodeURIComponent(normalized.handoff_query_json));
   if (decodedHandoff.suma_ok !== 'PospagoConRecursos' || decodedHandoff.__workflow_session !== 'sesion-etapa3-prueba') {
@@ -379,15 +379,15 @@ if (!errors.some((error) => error.includes('etapa 2 → etapa 3') || error.inclu
   ok('Handoff etapa 2 → etapa 3 conserva workflow_session');
 }
 
-const lookup3 = nodes3.get('Consultar Contexto Etapa 2 MySQL');
+const lookup3 = nodes3.get('Consultar Contexto Etapa 2 PostgreSQL');
 for (const token of [
-  'FROM CRM.GestionesFlujosLog',
-  'workflowSession = $2',
+  'FROM wflow.gestiones_log',
+  'workflow_session = $2',
   "resultado = 'continuar_parte_3'",
-  "nextStep = 'parte_3_configuracion_equipo'",
-  "JSON_EXTRACT(respuestasJson, '$.suma_ok')",
+  "next_step = 'parte_3_configuracion_equipo'",
+  "respuestas_json->>'suma_ok'",
   "IN ('PospagoConRecursos', 'PrepagoConRecursos')",
-  "codigoEtapa = 'diagnosticoSim'",
+  "codigo_etapa = 'diagnosticoSim'",
 ]) {
   if (!lookup3?.parameters?.query?.includes(token)) fail(`Contrato etapa 3 incompleto: ${token}`);
 }
@@ -397,9 +397,9 @@ if (!reaches(stage3, 'Preparar Contexto UI Etapa 3', 'Form Verificar Configuraci
 } else {
   ok('Etapa 3 inicia directamente con la configuración del equipo');
 }
-if (!reaches(stage3, 'Guardar Etapa 3 MySQL', 'Form Resumen y Observaciones') ||
-    !reaches(stage3, 'Form Resumen y Observaciones', 'Guardar Observaciones Asesor MySQL') ||
-    !reaches(stage3, 'Guardar Observaciones Asesor MySQL', 'Responder Cierre Etapa 3')) {
+if (!reaches(stage3, 'Guardar Etapa 3 PostgreSQL', 'Form Resumen y Observaciones') ||
+    !reaches(stage3, 'Form Resumen y Observaciones', 'Guardar Observaciones Asesor PostgreSQL') ||
+    !reaches(stage3, 'Guardar Observaciones Asesor PostgreSQL', 'Responder Cierre Etapa 3')) {
   fail('La etapa 3 no completa el resumen, las observaciones y la persistencia final.');
 } else {
   ok('Etapa 3 resume la sesión actual y guarda las observaciones antes del cierre');
@@ -421,7 +421,7 @@ for (let i = 0; i < sticky.length; i += 1) {
     if (overlap) fail(`Bloques visuales superpuestos: ${a.name} / ${b.name}`);
   }
 }
-if (!errors.some((error) => error.startsWith('Bloques visuales'))) ok('Siete bloques visuales separados, sin superposición');
+if (!errors.some((error) => error.startsWith('Bloques visuales'))) ok('Bloques visuales separados, sin superposición');
 
 const functional2 = stage2.nodes.filter((node) => node.type !== 'n8n-nodes-base.stickyNote');
 for (let i = 0; i < functional2.length; i += 1) {

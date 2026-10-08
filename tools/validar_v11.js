@@ -64,20 +64,25 @@ const expectedTerminals = [
   'Redirigir a Etapa 2',
   'Responder Cierre Etapa 1',
   'Responder Handoff Invalido',
+  'Volver a Flujo 0 Entrada 1',
+  'Volver a Flujo 0 Entrada 2',
+  'Responder Error Inicio Entrada 1',
+  'Responder Error Inicio Entrada 2',
+  'Responder Guardado Pendiente Etapa 1',
 ].sort();
 if (JSON.stringify(terminals.sort()) !== JSON.stringify(expectedTerminals)) {
   errors.push(`Terminales inesperados: ${terminals.join(', ')}`);
 }
 
-const mysql = names.get('Guardar Respuestas MySQL');
-if (!mysql || mysql.type !== 'n8n-nodes-base.mySql') errors.push('Falta el nodo MySQL final');
+const mysql = names.get('Guardar Respuestas PostgreSQL');
+if (!mysql || mysql.type !== 'n8n-nodes-base.postgres') errors.push('Falta el nodo PostgreSQL final');
 else {
   const placeholders = mysql.parameters.query.match(/\$\d+/g) || [];
   const maxPlaceholder = Math.max(...placeholders.map((value) => Number(value.slice(1))));
   if (maxPlaceholder !== 14) errors.push(`Cantidad de parámetros SQL inesperada: ${maxPlaceholder}`);
-  if (!mysql.parameters.query.includes('INSERT INTO CRM.GestionesFlujosLog')) errors.push('El guardado no fija el log general del esquema CRM');
-  if (!mysql.parameters.query.includes('(workflowSession, codigoFlujo, nombreFlujo, codigoEtapa')) errors.push('El guardado no usa el contrato general de flujo/etapa');
-  if (!mysql.parameters.query.includes('ON DUPLICATE KEY UPDATE')) errors.push('El INSERT no es idempotente');
+  if (!mysql.parameters.query.includes('INSERT INTO wflow.gestiones_log')) errors.push('El guardado no fija el log general del esquema CRM');
+  if (!mysql.parameters.query.includes('(workflow_session, codigo_flujo, nombre_flujo, codigo_etapa')) errors.push('El guardado no usa el contrato general de flujo/etapa');
+  if (!mysql.parameters.query.includes('ON CONFLICT')) errors.push('El INSERT no es idempotente');
   if (!mysql.parameters.options.queryReplacement.startsWith('={{ [')) errors.push('Los parámetros SQL no usan una matriz de expresiones');
 }
 
@@ -119,7 +124,7 @@ for (const node of functional.filter((item) => item.type === 'n8n-nodes-base.cod
     const render = new Function('$execution', '$json', node.parameters.jsCode);
     const result = render(
       { id: 'test-validation', mode: 'test', resumeUrl: 'https://n8n.example.test/webhook-waiting/test-validation' },
-      { query: {} },
+      { query: { workflow_session: 'f0-prueba-v11' } },
     );
     const html = result?.[0]?.json?.html_response || '';
     if (!html.includes('viewport-fit=cover')) errors.push(`Viewport incompleto: ${node.name}`);

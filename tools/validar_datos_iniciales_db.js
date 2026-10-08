@@ -1,57 +1,31 @@
-// Validación local de contratos. No conecta ni ejecuta SQL contra una base.
+// Contrato estático. validar_postgres.js ejecuta las consultas en PostgreSQL local.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
-const read = file => fs.readFileSync(path.join(root, file), 'utf8');
-const migration = read('database/02_DatosInicialesGestion_Workbench.sql');
-const checks = read('database/03_DatosInicialesGestion_Consultas.sql');
-const workflow = JSON.parse(read('Flujo 0 - Registro Inicial.json'));
-const node = workflow.nodes.find(node => node.name === 'Guardar Registro Inicial MySQL');
-assert.equal(node.parameters.query, 'CALL CRM.RegistrarInicioGestion($1,$2,$3,$4)');
-const replacements = node.parameters.options.queryReplacement.match(/\$json\.[a-z_]+/g);
-assert.equal(replacements.length, 4);
-assert.ok(!/DROP\s+TABLE|TRUNCATE\s+(TABLE\s+)?|DELETE\s+FROM/i.test(migration));
-assert.ok(migration.includes('CREATE TABLE IF NOT EXISTS CRM.GestionesFlujos'));
-assert.ok(migration.includes('UNIQUE KEY uqGestionesFlujosSesion (workflowSession)'));
-for (const field of ['usuarioAsesor', 'numeroConexion', 'pqr']) {
-  assert.ok(migration.includes(field + ' VARCHAR(100) NOT NULL'));
-  assert.ok(migration.includes('ADD COLUMN ' + field + ' VARCHAR(100)'));
-  assert.ok(migration.includes('NEW.' + field));
-}
-assert.ok(migration.includes('log.updatedAt = log.updatedAt'), 'No cambiar fechas históricas en el backfill');
-assert.ok(migration.includes('principal.COLLATION_NAME = logSesion.COLLATION_NAME'));
-assert.ok(migration.includes('CHARACTER_SET_NAME = logSesion.CHARACTER_SET_NAME'));
-assert.ok(migration.includes("vLogEngine <> 'InnoDB'"));
-assert.ok(migration.includes('DECLARE EXIT HANDLER FOR SQLEXCEPTION'));
-assert.ok(migration.includes('ROLLBACK;\n        RESIGNAL;'));
-const procedure = migration.slice(migration.indexOf('CREATE PROCEDURE CRM.RegistrarInicioGestion('));
-assert.equal((procedure.match(/\bIN p[A-Za-z]+/g) || []).length, 4);
+const ddl = fs.readFileSync(path.join(root, 'database/postgres/00_Estructura.sql'), 'utf8');
+for (const marker of ['CREATE SCHEMA IF NOT EXISTS wflow', 'CREATE TABLE IF NOT EXISTS wflow.gestiones (',
+  'CREATE TABLE IF NOT EXISTS wflow.gestiones_log', 'REFERENCES wflow.gestiones(workflow_session) ON DELETE RESTRICT',
+  'CONSTRAINT uq_log_etapa_intento UNIQUE', 'BEFORE INSERT OR UPDATE ON wflow.gestiones_log', 'NEW.numero_etapa > 0',
+  'CREATE OR REPLACE FUNCTION wflow.registrar_inicio_gestion', 'ON CONFLICT (workflow_session) DO NOTHING',
+  'CREATE OR REPLACE VIEW wflow.vw_gestiones_resumen', 'CREATE OR REPLACE VIEW wflow.vw_nsf_resumen']) assert.ok(ddl.includes(marker), marker);
+assert.ok(ddl.includes('BEGIN;') && ddl.trimEnd().endsWith('COMMIT;'));
+assert.ok(!/DROP\s+TABLE|TRUNCATE|DELETE\s+FROM/.test(ddl));
 for (const field of ['usuario_asesor', 'numero_conexion', 'pqr']) {
-  assert.ok(procedure.includes("JSON_TYPE(JSON_EXTRACT(pDatos, '$." + field + "'))"));
+  assert.equal((ddl.match(new RegExp(field + ' varchar\\(100\\) NOT NULL', 'g')) || []).length, 2);
+  assert.ok(ddl.includes('NEW.' + field + ' := inicio.' + field));
 }
-const begin = procedure.indexOf('START TRANSACTION;');
-const principal = procedure.indexOf('INSERT INTO CRM.GestionesFlujos (');
-const log = procedure.indexOf('INSERT INTO CRM.GestionesFlujosLog');
-const commit = procedure.indexOf('COMMIT;');
-const confirmation = procedure.indexOf('SELECT 1 AS registroConfirmado');
-assert.ok(begin < principal && principal < log && log < commit && commit < confirmation, 'Confirmar solo después de las dos escrituras y el commit');
-assert.ok(procedure.slice(principal, log).includes('ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)'));
-assert.ok(!/ON DUPLICATE KEY UPDATE[^;]*usuarioAsesor\s*=/i.test(procedure.slice(principal, log)), 'No reemplazar el registro original');
-assert.ok(migration.includes('BEFORE INSERT ON CRM.GestionesFlujosLog'));
-assert.ok(migration.includes('BEFORE UPDATE ON CRM.GestionesFlujosLog'));
-assert.equal((migration.match(/El flujo inicial debe guardarse con RegistrarInicioGestion/g) || []).length, 2, 'No aceptar un registro inicial solo en el log');
-assert.equal((migration.match(/FROM CRM\.GestionesFlujos WHERE workflowSession = NEW\.workflowSession/g) || []).length, 2);
-assert.ok(migration.includes("codigoFlujo = 'inicioGestion' AND codigoEtapa = 'registroInicial'"));
-assert.ok(migration.includes('ORDER BY createdAt, id'));
-assert.ok(migration.includes('CREATE OR REPLACE VIEW CRM.VwGestionesFlujosResumen'));
-assert.ok(migration.includes('CREATE OR REPLACE VIEW CRM.VwGestionesFlujosTrazabilidad'));
-assert.ok(!migration.includes('CREATE OR REPLACE VIEW CRM.VwNsf'));
-assert.ok(checks.includes('principalesSinLogInicial') && checks.includes('copiasDiferentesDelOriginal'));
-for (const stage of [1, 2, 3]) {
-  const current = JSON.parse(read('Ningun Servicio Funciona - ' + stage + '.json'));
-  const save = current.nodes.find(node => node.type === 'n8n-nodes-base.mySql' && node.parameters.query?.includes('INSERT INTO CRM.GestionesFlujosLog'));
-  assert.ok(save, 'La etapa existente conserva su contrato de log');
-  assert.ok(!save.parameters.query.includes('usuarioAsesor'), 'Las etapas reciben el snapshot mediante triggers, sin cambiar su INSERT');
+const start = ddl.indexOf('INSERT INTO wflow.gestiones AS gestion');
+const log = ddl.indexOf('INSERT INTO wflow.gestiones_log', start);
+const confirm = ddl.indexOf('RETURN QUERY SELECT 1', log);
+assert.ok(start < log && log < confirm);
+const registration = ddl.slice(ddl.indexOf('CREATE OR REPLACE FUNCTION wflow.registrar_inicio_gestion'), ddl.indexOf('REVOKE ALL ON FUNCTION wflow.registrar_inicio_gestion'));
+assert.ok(!/\bUPDATE\s+(?:SET|wflow\.)|\bDELETE\b/i.test(registration.replace(/--[^\n]*/g, '')));
+assert.ok(!/FROM\s+.*(?:usuarios|users|asesores)\b/i.test(registration));
+for (let stage = 0; stage <= 3; stage++) {
+  const file = stage === 0 ? 'Flujo 0 - Registro Inicial.json' : `Ningun Servicio Funciona - ${stage}.json`;
+  const workflow = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+  assert.ok(workflow.nodes.some(n => n.type === 'n8n-nodes-base.postgres'));
+  assert.ok(!workflow.nodes.some(n => n.type === 'n8n-nodes-base.mySql'));
 }
-console.log('CONTRATO DATOS INICIALES OK: esquema, transacción, backfill, snapshots y confirmación. SQL no ejecutado en servidor.');
+console.log('CONTRATO DATOS INICIALES OK: PostgreSQL, cabecera inmutable, log con FK, snapshots y confirmación atómica.');

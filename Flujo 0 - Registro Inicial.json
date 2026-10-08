@@ -2,13 +2,77 @@
   "name": "Flujo 0 - Registro Inicial",
   "nodes": [
     {
+      "id": "sticky-organizada-0-1",
+      "name": "01 · Apertura del registro",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 1400,
+        "height": 580,
+        "color": 5,
+        "content": "## 01 · Apertura del registro\n\nEntrada GET sin parámetros. Genera la referencia de la gestión y muestra los tres campos.\n\n**Regla:** Usuario del asesor, conexión y PQR son texto; no se solicita contraseña.\n\n**Salidas:** Respuesta al navegador.\n\n**Mantenimiento:** 3 nodos. PostgreSQL · CRM_N8N / wflow. Validar después de editar."
+      }
+    },
+    {
+      "id": "sticky-organizada-0-2",
+      "name": "02 · Recepción y validación",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "width": 1400,
+        "height": 780,
+        "color": 6,
+        "content": "## 02 · Recepción y validación\n\nRecibe POST, valida campos y conserva la referencia en los reintentos.\n\n**Regla:** Los tres campos son obligatorios; máximo 100 caracteres. Entradas inválidas reciben HTTP 422.\n\n**Salidas:** Guardado y continuidad\n\n**Mantenimiento:** 5 nodos. PostgreSQL · CRM_N8N / wflow. Validar después de editar."
+      }
+    },
+    {
+      "id": "sticky-organizada-0-3",
+      "name": "03 · Guardado y continuidad",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3000,
+        0
+      ],
+      "parameters": {
+        "width": 1400,
+        "height": 580,
+        "color": 4,
+        "content": "## 03 · Guardado y continuidad\n\nRegistra cabecera y log en una sola operación PostgreSQL. Confirma los valores originales guardados.\n\n**Regla:** Solo se permite continuar al diagnóstico después de recibir la confirmación de la base.\n\n**Salidas:** Reintento seguro\n\n**Mantenimiento:** 4 nodos. PostgreSQL · CRM_N8N / wflow. Validar después de editar."
+      }
+    },
+    {
+      "id": "sticky-organizada-0-4",
+      "name": "04 · Reintento seguro",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        920
+      ],
+      "parameters": {
+        "width": 1400,
+        "height": 580,
+        "color": 3,
+        "content": "## 04 · Reintento seguro\n\nConserva los campos y la referencia si la base no confirma el guardado.\n\n**Regla:** No se muestra el error técnico al asesor ni se inventa un resultado exitoso.\n\n**Salidas:** Respuesta al navegador.\n\n**Mantenimiento:** 3 nodos. PostgreSQL · CRM_N8N / wflow. Validar después de editar."
+      }
+    },
+    {
       "id": "flujo0-abrir-flujo-0",
       "name": "Abrir Flujo 0",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        0,
-        0
+        70,
+        320
       ],
       "parameters": {
         "httpMethod": "GET",
@@ -24,11 +88,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        280,
-        0
+        390,
+        320
       ],
       "parameters": {
-        "jsCode": "// Código del formulario n8n. Usa solo el cuerpo POST para recuperar valores.\nconst input = $json || {};\nconst data = input.valores || {};\nconst executionKey = String($execution.id || (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2))).replace(/[^a-zA-Z0-9_-]/g, '');\nconst session = input.workflow_session || 'f0-' + executionKey;\nconst escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[char]);\nconst webhook = String(input.webhookUrl || '');\nconst match = webhook.match(/^(https?:\\/\\/[^/]+)(\\/[^?#]*)?/i);\nlet action = '';\nif (match) {\n  const pathname = match[2] || '';\n  const marker = ['/webhook-test/', '/webhook/'].find(value => pathname.includes(value));\n  if (marker) action = match[1] + pathname.slice(0, pathname.indexOf(marker)) + marker + 'etb-form-inicial-guardar';\n}\nconst fields = [\n  ['usuario_asesor', 'Usuario del asesor', 'text', 'Ingresa tu usuario'],\n  ['numero_conexion', 'Número de conexión', 'numeric', 'Ingresa el número de conexión'],\n  ['pqr', 'PQR', 'text', 'Ingresa el número o referencia del PQR'],\n];\nconst fieldsHtml = fields.map(([name, label, mode, placeholder]) => '<div class=\"field\"><label for=\"' + name + '\">' + label + '</label><input id=\"' + name + '\" name=\"' + name + '\" type=\"text\" inputmode=\"' + mode + '\" maxlength=\"100\" required autocomplete=\"off\" value=\"' + escapeHtml(data[name] || '') + '\" placeholder=\"' + placeholder + '\"></div>').join('');\nconst message = input.mensaje || (!action ? 'No pudimos preparar el formulario. Abre el enlace publicado del flujo inicial.' : '');\nconst html = '<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\"><meta name=\"theme-color\" content=\"#071830\"><title>ETB - Registro inicial</title><style>*{box-sizing:border-box}:root{color-scheme:dark}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:18px;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.page{width:min(100%,620px)}.card{background:#10284a;border:1px solid #1a416d;border-radius:22px;padding:32px;box-shadow:0 24px 70px #0006}.tag{display:inline-block;color:#38c7ff;font-size:11px;letter-spacing:.1em;border:1px solid #238cbd66;border-radius:30px;background:#1da1f21a;padding:7px 13px}h1{font-size:clamp(26px,5vw,34px);line-height:1.15;margin:20px 0 12px}h1 span{color:#38c7ff}.copy{color:#b9c8dc;line-height:1.6;margin:0 0 24px;font-size:15px}.field{margin:0 0 18px}label{display:block;font-size:12px;font-weight:700;margin-bottom:8px;letter-spacing:.04em}input{width:100%;border:1px solid #31527b;border-radius:12px;background:#081a34;color:#f0f6ff;padding:14px 15px;font:inherit;min-height:50px;outline:none}input:focus{border-color:#38c7ff;box-shadow:0 0 0 3px #1da1f222}input::placeholder{color:#8299b7}.error{border:1px solid #ff8fa366;background:#ff8fa31a;padding:13px 15px;border-radius:12px;color:#ffb3c2;line-height:1.5;margin:0 0 20px}.error[hidden]{display:none}.button{display:block;width:100%;border:0;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;padding:16px;font:700 16px system-ui;cursor:pointer;min-height:54px}.button:disabled{opacity:.55;cursor:wait}.hint{color:#97acc7;font-size:12px;line-height:1.5;margin:14px 0 0}.footer{color:#8096b3;font-size:11px;text-align:center;margin:16px 0 0}@media(max-width:480px){body{padding:12px}.card{padding:24px 18px;border-radius:17px}h1{font-size:28px}}@media(max-height:650px){body{display:block}.page{margin:auto}.card{padding:22px}.copy{margin-bottom:18px}.field{margin-bottom:13px}}</style></head><body><main class=\"page\"><section class=\"card\"><div class=\"tag\">FLUJO 0 · REGISTRO INICIAL</div><h1>Registrar datos de la <span>gestión</span></h1><p class=\"copy\">Completa los datos del asesor y las referencias de la atención. Los tres campos son obligatorios.</p><div id=\"error\" class=\"error\" role=\"alert\"' + (message ? '' : ' hidden') + '>' + escapeHtml(message) + '</div><form id=\"initialForm\" method=\"POST\" action=\"' + escapeHtml(action) + '\"><input type=\"hidden\" name=\"workflow_session\" value=\"' + escapeHtml(session) + '\">' + fieldsHtml + '<button id=\"submit\" class=\"button\" type=\"submit\"' + (action ? '' : ' disabled') + '>Guardar datos iniciales</button></form><p class=\"hint\">Este registro inicial es independiente del diagnóstico. No solicita contraseña del asesor.</p></section><p class=\"footer\">© 2026 ETB · Empresa de Telecomunicaciones de Bogotá</p></main><script>(function(){var form=document.getElementById(\"initialForm\"),button=document.getElementById(\"submit\"),error=document.getElementById(\"error\");form.addEventListener(\"submit\",function(event){var fields=[\"usuario_asesor\",\"numero_conexion\",\"pqr\"];for(var index=0;index<fields.length;index++){var input=form.elements[fields[index]];input.value=input.value.trim();if(!input.value){event.preventDefault();error.hidden=false;error.textContent=\"Completa los tres campos antes de guardar.\";input.focus();return;}}if(!form.reportValidity()){event.preventDefault();return;}button.disabled=true;button.textContent=\"Guardando...\";});window.addEventListener(\"pageshow\",function(){button.disabled=!form.getAttribute(\"action\");button.textContent=\"Guardar datos iniciales\";});})();</script></body></html>';\nreturn [{ json: { html_response: html } }];\n"
+        "jsCode": "// Código del formulario n8n. Usa solo el cuerpo POST para recuperar valores.\nconst input = $json || {};\nconst data = input.valores || {};\nconst executionKey = String($execution.id || (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2))).replace(/[^a-zA-Z0-9_-]/g, '');\nconst session = input.workflow_session || 'f0-' + executionKey;\nconst escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[char]);\nconst webhook = String(input.webhookUrl || '');\nconst match = webhook.match(/^(https?:\\/\\/[^/]+)(\\/[^?#]*)?/i);\nlet action = '';\nif (match) {\n  const pathname = match[2] || '';\n  const marker = ['/webhook-test/', '/webhook/'].find(value => pathname.includes(value));\n  if (marker) action = match[1] + pathname.slice(0, pathname.indexOf(marker)) + marker + 'etb-form-inicial-guardar';\n}\nconst fields = [\n  ['usuario_asesor', 'Usuario del asesor', 'text', 'Ingresa tu usuario'],\n  ['numero_conexion', 'Número de conexión', 'numeric', 'Ingresa el número de conexión'],\n  ['pqr', 'PQR', 'text', 'Ingresa el número o referencia del PQR'],\n];\nconst fieldsHtml = fields.map(([name, label, mode, placeholder]) => '<div class=\"field\"><label for=\"' + name + '\">' + label + '</label><input id=\"' + name + '\" name=\"' + name + '\" type=\"text\" inputmode=\"' + mode + '\" maxlength=\"100\" required autocomplete=\"off\" value=\"' + escapeHtml(data[name] || '') + '\" placeholder=\"' + placeholder + '\"></div>').join('');\nconst message = input.mensaje || (!action ? 'No pudimos preparar el formulario. Abre el enlace publicado del flujo inicial.' : '');\nconst html = '<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\"><meta name=\"theme-color\" content=\"#071830\"><title>ETB - Registro inicial</title><style>*{box-sizing:border-box}:root{color-scheme:dark}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:18px;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.page{width:min(100%,620px)}.card{background:#10284a;border:1px solid #1a416d;border-radius:22px;padding:32px;box-shadow:0 24px 70px #0006}.tag{display:inline-block;color:#38c7ff;font-size:11px;letter-spacing:.1em;border:1px solid #238cbd66;border-radius:30px;background:#1da1f21a;padding:7px 13px}h1{font-size:clamp(26px,5vw,34px);line-height:1.15;margin:20px 0 12px}h1 span{color:#38c7ff}.copy{color:#b9c8dc;line-height:1.6;margin:0 0 24px;font-size:15px}.field{margin:0 0 18px}label{display:block;font-size:12px;font-weight:700;margin-bottom:8px;letter-spacing:.04em}input{width:100%;border:1px solid #31527b;border-radius:12px;background:#081a34;color:#f0f6ff;padding:14px 15px;font:inherit;min-height:50px;outline:none}input:focus{border-color:#38c7ff;box-shadow:0 0 0 3px #1da1f222}input::placeholder{color:#8299b7}.error{border:1px solid #ff8fa366;background:#ff8fa31a;padding:13px 15px;border-radius:12px;color:#ffb3c2;line-height:1.5;margin:0 0 20px}.error[hidden]{display:none}.button{display:block;width:100%;border:0;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;padding:16px;font:700 16px system-ui;cursor:pointer;min-height:54px}.button:disabled{opacity:.55;cursor:wait}.hint{color:#97acc7;font-size:12px;line-height:1.5;margin:14px 0 0}.footer{color:#8096b3;font-size:11px;text-align:center;margin:16px 0 0}@media(max-width:480px){body{padding:12px}.card{padding:24px 18px;border-radius:17px}h1{font-size:28px}}@media(max-height:650px){body{display:block}.page{margin:auto}.card{padding:22px}.copy{margin-bottom:18px}.field{margin-bottom:13px}}</style></head><body><main class=\"page\"><section class=\"card\"><div class=\"tag\">FLUJO 0 · REGISTRO INICIAL</div><h1>Registrar datos de la <span>gestión</span></h1><p class=\"copy\">Completa los datos del asesor y las referencias de la atención. Los tres campos son obligatorios.</p><div id=\"error\" class=\"error\" role=\"alert\"' + (message ? '' : ' hidden') + '>' + escapeHtml(message) + '</div><form id=\"initialForm\" method=\"POST\" action=\"' + escapeHtml(action) + '\"><input type=\"hidden\" name=\"workflow_session\" value=\"' + escapeHtml(session) + '\">' + fieldsHtml + '<button id=\"submit\" class=\"button\" type=\"submit\"' + (action ? '' : ' disabled') + '>Guardar datos iniciales</button></form><p class=\"hint\">Este registro inicial es independiente del diagnóstico. No solicita contraseña del asesor.</p></section><p class=\"footer\">© 2026 ETB · Empresa de Telecomunicaciones de Bogotá</p></main><script>(function(){var form=document.getElementById(\"initialForm\"),button=document.getElementById(\"submit\"),error=document.getElementById(\"error\");form.addEventListener(\"submit\",function(event){var fields=[\"usuario_asesor\",\"numero_conexion\",\"pqr\"];for(var index=0;index<fields.length;index++){var input=form.elements[fields[index]];input.value=input.value.trim();if(!input.value){event.preventDefault();error.hidden=false;error.textContent=\"Completa los tres campos antes de guardar.\";input.focus();return;}}if(!form.reportValidity()){event.preventDefault();return;}button.disabled=true;button.textContent=\"Guardando...\";});window.addEventListener(\"pageshow\",function(){button.disabled=!form.getAttribute(\"action\");button.textContent=\"Guardar datos iniciales\";});})();</script></body></html>';\nreturn [{ json: { html_response: html.replace('Este registro inicial es independiente del diagnóstico.', 'Este registro inicia la gestión y conserva su referencia durante todo el diagnóstico.') } }];\n"
       }
     },
     {
@@ -37,8 +101,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        560,
-        0
+        710,
+        320
       ],
       "parameters": {
         "respondWith": "text",
@@ -69,8 +133,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        0,
-        480
+        1570,
+        320
       ],
       "parameters": {
         "httpMethod": "POST",
@@ -86,8 +150,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        280,
-        480
+        1890,
+        320
       ],
       "parameters": {
         "jsCode": "// Código n8n: no lee los datos personales desde query ni genera otra sesión.\nconst body = $json?.body && typeof $json.body === 'object' && !Array.isArray($json.body) ? $json.body : {};\nconst stringValue = name => typeof body[name] === 'string' ? body[name].trim() : '';\nconst valores = Object.fromEntries(['usuario_asesor', 'numero_conexion', 'pqr'].map(name => [name, stringValue(name)]));\nconst session = stringValue('workflow_session');\nconst validSession = /^f0-[a-zA-Z0-9_-]{1,72}$/.test(session);\nconst validFields = Object.values(valores).every(value => value.length >= 1 && value.length <= 100 && !/[\\u0000-\\u001f\\u007f]/.test(value));\nreturn [{ json: {\n  valido: validSession && validFields,\n  workflow_session: validSession ? session : '',\n  webhookUrl: String($json.webhookUrl || ''),\n  valores,\n  mensaje: validSession\n    ? 'Completa los tres campos con un máximo de 100 caracteres por campo.'\n    : 'No pudimos recuperar la referencia del formulario. Revisa los datos e intenta guardar nuevamente.',\n} }];\n"
@@ -99,8 +163,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        560,
-        480
+        2210,
+        320
       ],
       "parameters": {
         "conditions": {
@@ -133,34 +197,37 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        840,
-        380
+        3070,
+        320
       ],
       "parameters": {
-        "jsCode": "const answers = $json.valores;\nreturn [{ json: {\n  workflow_session: $json.workflow_session,\n  codigo_flujo: 'inicioGestion', nombre_flujo: 'Inicio de gestion',\n  codigo_etapa: 'registroInicial', nombre_etapa: 'Datos iniciales del asesor y la atencion',\n  numero_etapa: 0, numero_intento: 1,\n  execution_id: String($execution.id || ''), workflow_version: 'flujo0-v2-datos-base-log-20261005',\n  estado_gestion: 'Completada', resultado: 'datos_iniciales_registrados', next_step: 'fin_flujo_0',\n  respuestas_json: JSON.stringify(answers), contexto_json: JSON.stringify(answers),\n  valores: answers, webhookUrl: $json.webhookUrl,\n} }];"
+        "jsCode": "const answers = $json.valores;\nreturn [{ json: {\n  workflow_session: $json.workflow_session,\n  codigo_flujo: 'inicioGestion', nombre_flujo: 'Inicio de gestion',\n  codigo_etapa: 'registroInicial', nombre_etapa: 'Datos iniciales del asesor y la atencion',\n  numero_etapa: 0, numero_intento: 1,\n  execution_id: String($execution.id || ''), workflow_version: 'postgres-flujo-0-20261008',\n  estado_gestion: 'Completada', resultado: 'datos_iniciales_registrados', next_step: 'fin_flujo_0',\n  respuestas_json: JSON.stringify(answers), contexto_json: JSON.stringify(answers),\n  valores: answers, webhookUrl: $json.webhookUrl,\n} }];"
       }
     },
     {
       "id": "flujo0-guardar-registro-inicial-mysql",
-      "name": "Guardar Registro Inicial MySQL",
-      "type": "n8n-nodes-base.mySql",
-      "typeVersion": 2.5,
+      "name": "Guardar Registro Inicial PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
-        1120,
-        380
+        3390,
+        320
       ],
       "parameters": {
+        "resource": "database",
         "operation": "executeQuery",
-        "query": "CALL CRM.RegistrarInicioGestion($1,$2,$3,$4)",
+        "query": "SELECT * FROM wflow.registrar_inicio_gestion($1::text,$2::jsonb,$3::text,$4::text)",
         "options": {
           "queryBatching": "single",
           "queryReplacement": "={{ [ $json.workflow_session, $json.respuestas_json, $json.execution_id, $json.workflow_version ] }}",
-          "replaceEmptyStrings": true,
-          "detailedOutput": true
+          "replaceEmptyStrings": false,
+          "largeNumbersOutput": "text",
+          "connectionTimeout": 15
         }
       },
       "onError": "continueErrorOutput",
-      "notes": "Ejecuta primero database/02_DatosInicialesGestion_Workbench.sql. Asigna credencial CRM con EXECUTE sobre RegistrarInicioGestion y SELECT/INSERT/UPDATE sobre las dos tablas."
+      "notes": "PostgreSQL · CRM_N8N · esquema wflow. Instalar database/postgres/00_Estructura.sql. Asignar la credencial PostgreSQL; nunca guardar contraseñas en el JSON. Los parámetros se envían como un array, sin concatenar datos en SQL.",
+      "alwaysOutputData": true
     },
     {
       "id": "flujo0-confirmar-registro-inicial",
@@ -168,11 +235,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
-        280
+        3710,
+        320
       ],
       "parameters": {
-        "jsCode": "const input = $('Preparar Registro Inicial SQL').first().json;\nfunction findConfirmation(value) {\n  if (!value || typeof value !== 'object') return null;\n  if (Number(value.registroConfirmado) === 1 && value.workflowSession === input.workflow_session &&\n      ['usuarioAsesor', 'numeroConexion', 'pqr'].every(key => typeof value[key] === 'string' && value[key])) return value;\n  for (const current of Object.values(value)) {\n    if (current && typeof current === 'object') { const found = findConfirmation(current); if (found) return found; }\n  }\n  return null;\n}\nconst stored = findConfirmation($json);\nif (!stored) throw new Error('La base no devolvio confirmacion del registro inicial.');\nconst prepared = { workflow_session: stored.workflowSession, valores: {\n  usuario_asesor: stored.usuarioAsesor, numero_conexion: stored.numeroConexion, pqr: stored.pqr,\n} };\nconst esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[char]);\nconst fields = [['Usuario del asesor', 'usuario_asesor'], ['Número de conexión', 'numero_conexion'], ['PQR', 'pqr']];\nconst summary = fields.map(([label, key]) => '<div class=\"row\"><dt>' + label + '</dt><dd>' + esc(prepared.valores[key]) + '</dd></div>').join('');\nconst html = '<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ETB - Registro completado</title><style>*{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,sans-serif;padding:18px}.card{width:min(100%,620px);background:#10284a;border:1px solid #1a416d;border-radius:22px;padding:32px}.tag{color:#63e89e;font-size:12px}h1{font-size:30px}p{color:#b9c8dc;line-height:1.6}.row{background:#081a34;border-radius:12px;padding:14px;margin-bottom:10px}dt{color:#9fb4cf;font-size:12px}dd{margin:6px 0 0;overflow-wrap:anywhere}.reference{font-size:12px;overflow-wrap:anywhere}@media(max-width:480px){.card{padding:24px 18px}}</style></head><body><main class=\"card\"><div class=\"tag\">FLUJO 0 · REGISTRO COMPLETADO</div><h1>Datos iniciales guardados</h1><p>El registro se guardó correctamente. Este flujo aún no está conectado al diagnóstico.</p><dl>' + summary + '</dl><p class=\"reference\">Referencia de la gestión: ' + esc(prepared.workflow_session) + '</p></main></body></html>';\nreturn [{ json: { html_response: html } }];"
+        "jsCode": "const input = $('Preparar Registro Inicial SQL').first().json;\nfunction findConfirmation(value) {\n  if (!value || typeof value !== 'object') return null;\n  if (Number(value.registroConfirmado) === 1 && value.workflowSession === input.workflow_session &&\n      ['usuarioAsesor', 'numeroConexion', 'pqr'].every(key => typeof value[key] === 'string' && value[key])) return value;\n  for (const current of Object.values(value)) {\n    if (current && typeof current === 'object') { const found = findConfirmation(current); if (found) return found; }\n  }\n  return null;\n}\nconst stored = findConfirmation($json);\nif (!stored) throw new Error('La base no devolvio confirmacion del registro inicial.');\nconst prepared = { workflow_session: stored.workflowSession, valores: {\n  usuario_asesor: stored.usuarioAsesor, numero_conexion: stored.numeroConexion, pqr: stored.pqr,\n} };\nconst baseMatch = String(input.webhookUrl || '').match(/^(https?:\\/\\/[^/]+)(\\/[^?#]*)?/i);\nlet continueUrl = '';\nif (baseMatch) {\n  const pathname = baseMatch[2] || '';\n  const marker = ['/webhook-test/', '/webhook/'].find(value => pathname.includes(value));\n  if (marker) continueUrl = baseMatch[1] + pathname.slice(0, pathname.indexOf(marker)) + '/webhook/etb-form?workflow_session=' + encodeURIComponent(stored.workflowSession);\n}\nconst esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[char]);\nconst fields = [['Usuario del asesor', 'usuario_asesor'], ['Número de conexión', 'numero_conexion'], ['PQR', 'pqr']];\nconst summary = fields.map(([label, key]) => '<div class=\"row\"><dt>' + label + '</dt><dd>' + esc(prepared.valores[key]) + '</dd></div>').join('');\nconst html = '<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ETB - Registro completado</title><style>*{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;background:#071830;color:#f0f6ff;font-family:system-ui,sans-serif;padding:18px}.card{width:min(100%,620px);background:#10284a;border:1px solid #1a416d;border-radius:22px;padding:32px}.tag{color:#63e89e;font-size:12px}h1{font-size:30px}p{color:#b9c8dc;line-height:1.6}.row{background:#081a34;border-radius:12px;padding:14px;margin-bottom:10px}dt{color:#9fb4cf;font-size:12px}dd{margin:6px 0 0;overflow-wrap:anywhere}.reference{font-size:12px;overflow-wrap:anywhere}@media(max-width:480px){.card{padding:24px 18px}}</style></head><body><main class=\"card\"><div class=\"tag\">FLUJO 0 · REGISTRO COMPLETADO</div><h1>Datos iniciales guardados</h1><p>El registro se guardó correctamente. Este flujo aún no está conectado al diagnóstico.</p><dl>' + summary + '</dl><p class=\"reference\">Referencia de la gestión: ' + esc(prepared.workflow_session) + '</p></main></body></html>';\nconst linkedHtml = html.replace('Este flujo aún no está conectado al diagnóstico.', 'Continúa al diagnóstico con esta misma gestión.')\n  .replace('</dl>', '</dl>' + (continueUrl ? '<a style=\"display:block;text-align:center;padding:16px;border-radius:13px;background:#0d80cc;color:#fff;text-decoration:none;font-weight:700\" href=\"' + esc(continueUrl) + '\">Continuar al diagnóstico</a>' : '<p>El registro está guardado. No se pudo preparar el enlace de continuación; informa la referencia a soporte.</p>'));\nreturn [{ json: { html_response: linkedHtml, workflow_session: stored.workflowSession, continue_url: continueUrl } }];"
       },
       "onError": "continueErrorOutput"
     },
@@ -182,8 +249,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1680,
-        280
+        4030,
+        320
       ],
       "parameters": {
         "respondWith": "text",
@@ -214,11 +281,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        840,
-        700
+        2530,
+        320
       ],
       "parameters": {
-        "jsCode": "// Código del formulario n8n. Usa solo el cuerpo POST para recuperar valores.\nconst input = $json || {};\nconst data = input.valores || {};\nconst executionKey = String($execution.id || (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2))).replace(/[^a-zA-Z0-9_-]/g, '');\nconst session = input.workflow_session || 'f0-' + executionKey;\nconst escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[char]);\nconst webhook = String(input.webhookUrl || '');\nconst match = webhook.match(/^(https?:\\/\\/[^/]+)(\\/[^?#]*)?/i);\nlet action = '';\nif (match) {\n  const pathname = match[2] || '';\n  const marker = ['/webhook-test/', '/webhook/'].find(value => pathname.includes(value));\n  if (marker) action = match[1] + pathname.slice(0, pathname.indexOf(marker)) + marker + 'etb-form-inicial-guardar';\n}\nconst fields = [\n  ['usuario_asesor', 'Usuario del asesor', 'text', 'Ingresa tu usuario'],\n  ['numero_conexion', 'Número de conexión', 'numeric', 'Ingresa el número de conexión'],\n  ['pqr', 'PQR', 'text', 'Ingresa el número o referencia del PQR'],\n];\nconst fieldsHtml = fields.map(([name, label, mode, placeholder]) => '<div class=\"field\"><label for=\"' + name + '\">' + label + '</label><input id=\"' + name + '\" name=\"' + name + '\" type=\"text\" inputmode=\"' + mode + '\" maxlength=\"100\" required autocomplete=\"off\" value=\"' + escapeHtml(data[name] || '') + '\" placeholder=\"' + placeholder + '\"></div>').join('');\nconst message = input.mensaje || (!action ? 'No pudimos preparar el formulario. Abre el enlace publicado del flujo inicial.' : '');\nconst html = '<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\"><meta name=\"theme-color\" content=\"#071830\"><title>ETB - Registro inicial</title><style>*{box-sizing:border-box}:root{color-scheme:dark}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:18px;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.page{width:min(100%,620px)}.card{background:#10284a;border:1px solid #1a416d;border-radius:22px;padding:32px;box-shadow:0 24px 70px #0006}.tag{display:inline-block;color:#38c7ff;font-size:11px;letter-spacing:.1em;border:1px solid #238cbd66;border-radius:30px;background:#1da1f21a;padding:7px 13px}h1{font-size:clamp(26px,5vw,34px);line-height:1.15;margin:20px 0 12px}h1 span{color:#38c7ff}.copy{color:#b9c8dc;line-height:1.6;margin:0 0 24px;font-size:15px}.field{margin:0 0 18px}label{display:block;font-size:12px;font-weight:700;margin-bottom:8px;letter-spacing:.04em}input{width:100%;border:1px solid #31527b;border-radius:12px;background:#081a34;color:#f0f6ff;padding:14px 15px;font:inherit;min-height:50px;outline:none}input:focus{border-color:#38c7ff;box-shadow:0 0 0 3px #1da1f222}input::placeholder{color:#8299b7}.error{border:1px solid #ff8fa366;background:#ff8fa31a;padding:13px 15px;border-radius:12px;color:#ffb3c2;line-height:1.5;margin:0 0 20px}.error[hidden]{display:none}.button{display:block;width:100%;border:0;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;padding:16px;font:700 16px system-ui;cursor:pointer;min-height:54px}.button:disabled{opacity:.55;cursor:wait}.hint{color:#97acc7;font-size:12px;line-height:1.5;margin:14px 0 0}.footer{color:#8096b3;font-size:11px;text-align:center;margin:16px 0 0}@media(max-width:480px){body{padding:12px}.card{padding:24px 18px;border-radius:17px}h1{font-size:28px}}@media(max-height:650px){body{display:block}.page{margin:auto}.card{padding:22px}.copy{margin-bottom:18px}.field{margin-bottom:13px}}</style></head><body><main class=\"page\"><section class=\"card\"><div class=\"tag\">FLUJO 0 · REGISTRO INICIAL</div><h1>Registrar datos de la <span>gestión</span></h1><p class=\"copy\">Completa los datos del asesor y las referencias de la atención. Los tres campos son obligatorios.</p><div id=\"error\" class=\"error\" role=\"alert\"' + (message ? '' : ' hidden') + '>' + escapeHtml(message) + '</div><form id=\"initialForm\" method=\"POST\" action=\"' + escapeHtml(action) + '\"><input type=\"hidden\" name=\"workflow_session\" value=\"' + escapeHtml(session) + '\">' + fieldsHtml + '<button id=\"submit\" class=\"button\" type=\"submit\"' + (action ? '' : ' disabled') + '>Guardar datos iniciales</button></form><p class=\"hint\">Este registro inicial es independiente del diagnóstico. No solicita contraseña del asesor.</p></section><p class=\"footer\">© 2026 ETB · Empresa de Telecomunicaciones de Bogotá</p></main><script>(function(){var form=document.getElementById(\"initialForm\"),button=document.getElementById(\"submit\"),error=document.getElementById(\"error\");form.addEventListener(\"submit\",function(event){var fields=[\"usuario_asesor\",\"numero_conexion\",\"pqr\"];for(var index=0;index<fields.length;index++){var input=form.elements[fields[index]];input.value=input.value.trim();if(!input.value){event.preventDefault();error.hidden=false;error.textContent=\"Completa los tres campos antes de guardar.\";input.focus();return;}}if(!form.reportValidity()){event.preventDefault();return;}button.disabled=true;button.textContent=\"Guardando...\";});window.addEventListener(\"pageshow\",function(){button.disabled=!form.getAttribute(\"action\");button.textContent=\"Guardar datos iniciales\";});})();</script></body></html>';\nreturn [{ json: { html_response: html } }];\n"
+        "jsCode": "// Código del formulario n8n. Usa solo el cuerpo POST para recuperar valores.\nconst input = $json || {};\nconst data = input.valores || {};\nconst executionKey = String($execution.id || (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2))).replace(/[^a-zA-Z0-9_-]/g, '');\nconst session = input.workflow_session || 'f0-' + executionKey;\nconst escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[char]);\nconst webhook = String(input.webhookUrl || '');\nconst match = webhook.match(/^(https?:\\/\\/[^/]+)(\\/[^?#]*)?/i);\nlet action = '';\nif (match) {\n  const pathname = match[2] || '';\n  const marker = ['/webhook-test/', '/webhook/'].find(value => pathname.includes(value));\n  if (marker) action = match[1] + pathname.slice(0, pathname.indexOf(marker)) + marker + 'etb-form-inicial-guardar';\n}\nconst fields = [\n  ['usuario_asesor', 'Usuario del asesor', 'text', 'Ingresa tu usuario'],\n  ['numero_conexion', 'Número de conexión', 'numeric', 'Ingresa el número de conexión'],\n  ['pqr', 'PQR', 'text', 'Ingresa el número o referencia del PQR'],\n];\nconst fieldsHtml = fields.map(([name, label, mode, placeholder]) => '<div class=\"field\"><label for=\"' + name + '\">' + label + '</label><input id=\"' + name + '\" name=\"' + name + '\" type=\"text\" inputmode=\"' + mode + '\" maxlength=\"100\" required autocomplete=\"off\" value=\"' + escapeHtml(data[name] || '') + '\" placeholder=\"' + placeholder + '\"></div>').join('');\nconst message = input.mensaje || (!action ? 'No pudimos preparar el formulario. Abre el enlace publicado del flujo inicial.' : '');\nconst html = '<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\"><meta name=\"theme-color\" content=\"#071830\"><title>ETB - Registro inicial</title><style>*{box-sizing:border-box}:root{color-scheme:dark}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:18px;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.page{width:min(100%,620px)}.card{background:#10284a;border:1px solid #1a416d;border-radius:22px;padding:32px;box-shadow:0 24px 70px #0006}.tag{display:inline-block;color:#38c7ff;font-size:11px;letter-spacing:.1em;border:1px solid #238cbd66;border-radius:30px;background:#1da1f21a;padding:7px 13px}h1{font-size:clamp(26px,5vw,34px);line-height:1.15;margin:20px 0 12px}h1 span{color:#38c7ff}.copy{color:#b9c8dc;line-height:1.6;margin:0 0 24px;font-size:15px}.field{margin:0 0 18px}label{display:block;font-size:12px;font-weight:700;margin-bottom:8px;letter-spacing:.04em}input{width:100%;border:1px solid #31527b;border-radius:12px;background:#081a34;color:#f0f6ff;padding:14px 15px;font:inherit;min-height:50px;outline:none}input:focus{border-color:#38c7ff;box-shadow:0 0 0 3px #1da1f222}input::placeholder{color:#8299b7}.error{border:1px solid #ff8fa366;background:#ff8fa31a;padding:13px 15px;border-radius:12px;color:#ffb3c2;line-height:1.5;margin:0 0 20px}.error[hidden]{display:none}.button{display:block;width:100%;border:0;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;padding:16px;font:700 16px system-ui;cursor:pointer;min-height:54px}.button:disabled{opacity:.55;cursor:wait}.hint{color:#97acc7;font-size:12px;line-height:1.5;margin:14px 0 0}.footer{color:#8096b3;font-size:11px;text-align:center;margin:16px 0 0}@media(max-width:480px){body{padding:12px}.card{padding:24px 18px;border-radius:17px}h1{font-size:28px}}@media(max-height:650px){body{display:block}.page{margin:auto}.card{padding:22px}.copy{margin-bottom:18px}.field{margin-bottom:13px}}</style></head><body><main class=\"page\"><section class=\"card\"><div class=\"tag\">FLUJO 0 · REGISTRO INICIAL</div><h1>Registrar datos de la <span>gestión</span></h1><p class=\"copy\">Completa los datos del asesor y las referencias de la atención. Los tres campos son obligatorios.</p><div id=\"error\" class=\"error\" role=\"alert\"' + (message ? '' : ' hidden') + '>' + escapeHtml(message) + '</div><form id=\"initialForm\" method=\"POST\" action=\"' + escapeHtml(action) + '\"><input type=\"hidden\" name=\"workflow_session\" value=\"' + escapeHtml(session) + '\">' + fieldsHtml + '<button id=\"submit\" class=\"button\" type=\"submit\"' + (action ? '' : ' disabled') + '>Guardar datos iniciales</button></form><p class=\"hint\">Este registro inicial es independiente del diagnóstico. No solicita contraseña del asesor.</p></section><p class=\"footer\">© 2026 ETB · Empresa de Telecomunicaciones de Bogotá</p></main><script>(function(){var form=document.getElementById(\"initialForm\"),button=document.getElementById(\"submit\"),error=document.getElementById(\"error\");form.addEventListener(\"submit\",function(event){var fields=[\"usuario_asesor\",\"numero_conexion\",\"pqr\"];for(var index=0;index<fields.length;index++){var input=form.elements[fields[index]];input.value=input.value.trim();if(!input.value){event.preventDefault();error.hidden=false;error.textContent=\"Completa los tres campos antes de guardar.\";input.focus();return;}}if(!form.reportValidity()){event.preventDefault();return;}button.disabled=true;button.textContent=\"Guardando...\";});window.addEventListener(\"pageshow\",function(){button.disabled=!form.getAttribute(\"action\");button.textContent=\"Guardar datos iniciales\";});})();</script></body></html>';\nreturn [{ json: { html_response: html.replace('Este registro inicial es independiente del diagnóstico.', 'Este registro inicia la gestión y conserva su referencia durante todo el diagnóstico.') } }];\n"
       }
     },
     {
@@ -227,8 +294,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1120,
-        700
+        1570,
+        520
       ],
       "parameters": {
         "respondWith": "text",
@@ -260,8 +327,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
-        480
+        70,
+        1240
       ],
       "parameters": {
         "jsCode": "const prepared = $('Preparar Registro Inicial SQL').first().json;\nreturn [{ json: {\n  workflow_session: prepared.workflow_session,\n  valores: prepared.valores, webhookUrl: prepared.webhookUrl,\n  mensaje: 'No pudimos confirmar el guardado. Tus datos se conservan en este formulario. Reintenta; si continúa, informa la referencia de la gestión a soporte: ' + prepared.workflow_session,\n  detalle_tecnico: String($json.message || $json.error?.message || 'Error de guardado'),\n} }];"
@@ -273,11 +340,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        480
+        390,
+        1240
       ],
       "parameters": {
-        "jsCode": "// Código del formulario n8n. Usa solo el cuerpo POST para recuperar valores.\nconst input = $json || {};\nconst data = input.valores || {};\nconst executionKey = String($execution.id || (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2))).replace(/[^a-zA-Z0-9_-]/g, '');\nconst session = input.workflow_session || 'f0-' + executionKey;\nconst escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[char]);\nconst webhook = String(input.webhookUrl || '');\nconst match = webhook.match(/^(https?:\\/\\/[^/]+)(\\/[^?#]*)?/i);\nlet action = '';\nif (match) {\n  const pathname = match[2] || '';\n  const marker = ['/webhook-test/', '/webhook/'].find(value => pathname.includes(value));\n  if (marker) action = match[1] + pathname.slice(0, pathname.indexOf(marker)) + marker + 'etb-form-inicial-guardar';\n}\nconst fields = [\n  ['usuario_asesor', 'Usuario del asesor', 'text', 'Ingresa tu usuario'],\n  ['numero_conexion', 'Número de conexión', 'numeric', 'Ingresa el número de conexión'],\n  ['pqr', 'PQR', 'text', 'Ingresa el número o referencia del PQR'],\n];\nconst fieldsHtml = fields.map(([name, label, mode, placeholder]) => '<div class=\"field\"><label for=\"' + name + '\">' + label + '</label><input id=\"' + name + '\" name=\"' + name + '\" type=\"text\" inputmode=\"' + mode + '\" maxlength=\"100\" required autocomplete=\"off\" value=\"' + escapeHtml(data[name] || '') + '\" placeholder=\"' + placeholder + '\"></div>').join('');\nconst message = input.mensaje || (!action ? 'No pudimos preparar el formulario. Abre el enlace publicado del flujo inicial.' : '');\nconst html = '<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\"><meta name=\"theme-color\" content=\"#071830\"><title>ETB - Registro inicial</title><style>*{box-sizing:border-box}:root{color-scheme:dark}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:18px;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.page{width:min(100%,620px)}.card{background:#10284a;border:1px solid #1a416d;border-radius:22px;padding:32px;box-shadow:0 24px 70px #0006}.tag{display:inline-block;color:#38c7ff;font-size:11px;letter-spacing:.1em;border:1px solid #238cbd66;border-radius:30px;background:#1da1f21a;padding:7px 13px}h1{font-size:clamp(26px,5vw,34px);line-height:1.15;margin:20px 0 12px}h1 span{color:#38c7ff}.copy{color:#b9c8dc;line-height:1.6;margin:0 0 24px;font-size:15px}.field{margin:0 0 18px}label{display:block;font-size:12px;font-weight:700;margin-bottom:8px;letter-spacing:.04em}input{width:100%;border:1px solid #31527b;border-radius:12px;background:#081a34;color:#f0f6ff;padding:14px 15px;font:inherit;min-height:50px;outline:none}input:focus{border-color:#38c7ff;box-shadow:0 0 0 3px #1da1f222}input::placeholder{color:#8299b7}.error{border:1px solid #ff8fa366;background:#ff8fa31a;padding:13px 15px;border-radius:12px;color:#ffb3c2;line-height:1.5;margin:0 0 20px}.error[hidden]{display:none}.button{display:block;width:100%;border:0;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;padding:16px;font:700 16px system-ui;cursor:pointer;min-height:54px}.button:disabled{opacity:.55;cursor:wait}.hint{color:#97acc7;font-size:12px;line-height:1.5;margin:14px 0 0}.footer{color:#8096b3;font-size:11px;text-align:center;margin:16px 0 0}@media(max-width:480px){body{padding:12px}.card{padding:24px 18px;border-radius:17px}h1{font-size:28px}}@media(max-height:650px){body{display:block}.page{margin:auto}.card{padding:22px}.copy{margin-bottom:18px}.field{margin-bottom:13px}}</style></head><body><main class=\"page\"><section class=\"card\"><div class=\"tag\">FLUJO 0 · REGISTRO INICIAL</div><h1>Registrar datos de la <span>gestión</span></h1><p class=\"copy\">Completa los datos del asesor y las referencias de la atención. Los tres campos son obligatorios.</p><div id=\"error\" class=\"error\" role=\"alert\"' + (message ? '' : ' hidden') + '>' + escapeHtml(message) + '</div><form id=\"initialForm\" method=\"POST\" action=\"' + escapeHtml(action) + '\"><input type=\"hidden\" name=\"workflow_session\" value=\"' + escapeHtml(session) + '\">' + fieldsHtml + '<button id=\"submit\" class=\"button\" type=\"submit\"' + (action ? '' : ' disabled') + '>Guardar datos iniciales</button></form><p class=\"hint\">Este registro inicial es independiente del diagnóstico. No solicita contraseña del asesor.</p></section><p class=\"footer\">© 2026 ETB · Empresa de Telecomunicaciones de Bogotá</p></main><script>(function(){var form=document.getElementById(\"initialForm\"),button=document.getElementById(\"submit\"),error=document.getElementById(\"error\");form.addEventListener(\"submit\",function(event){var fields=[\"usuario_asesor\",\"numero_conexion\",\"pqr\"];for(var index=0;index<fields.length;index++){var input=form.elements[fields[index]];input.value=input.value.trim();if(!input.value){event.preventDefault();error.hidden=false;error.textContent=\"Completa los tres campos antes de guardar.\";input.focus();return;}}if(!form.reportValidity()){event.preventDefault();return;}button.disabled=true;button.textContent=\"Guardando...\";});window.addEventListener(\"pageshow\",function(){button.disabled=!form.getAttribute(\"action\");button.textContent=\"Guardar datos iniciales\";});})();</script></body></html>';\nreturn [{ json: { html_response: html } }];\n"
+        "jsCode": "// Código del formulario n8n. Usa solo el cuerpo POST para recuperar valores.\nconst input = $json || {};\nconst data = input.valores || {};\nconst executionKey = String($execution.id || (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2))).replace(/[^a-zA-Z0-9_-]/g, '');\nconst session = input.workflow_session || 'f0-' + executionKey;\nconst escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[char]);\nconst webhook = String(input.webhookUrl || '');\nconst match = webhook.match(/^(https?:\\/\\/[^/]+)(\\/[^?#]*)?/i);\nlet action = '';\nif (match) {\n  const pathname = match[2] || '';\n  const marker = ['/webhook-test/', '/webhook/'].find(value => pathname.includes(value));\n  if (marker) action = match[1] + pathname.slice(0, pathname.indexOf(marker)) + marker + 'etb-form-inicial-guardar';\n}\nconst fields = [\n  ['usuario_asesor', 'Usuario del asesor', 'text', 'Ingresa tu usuario'],\n  ['numero_conexion', 'Número de conexión', 'numeric', 'Ingresa el número de conexión'],\n  ['pqr', 'PQR', 'text', 'Ingresa el número o referencia del PQR'],\n];\nconst fieldsHtml = fields.map(([name, label, mode, placeholder]) => '<div class=\"field\"><label for=\"' + name + '\">' + label + '</label><input id=\"' + name + '\" name=\"' + name + '\" type=\"text\" inputmode=\"' + mode + '\" maxlength=\"100\" required autocomplete=\"off\" value=\"' + escapeHtml(data[name] || '') + '\" placeholder=\"' + placeholder + '\"></div>').join('');\nconst message = input.mensaje || (!action ? 'No pudimos preparar el formulario. Abre el enlace publicado del flujo inicial.' : '');\nconst html = '<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\"><meta name=\"theme-color\" content=\"#071830\"><title>ETB - Registro inicial</title><style>*{box-sizing:border-box}:root{color-scheme:dark}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:18px;background:#071830;color:#f0f6ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.page{width:min(100%,620px)}.card{background:#10284a;border:1px solid #1a416d;border-radius:22px;padding:32px;box-shadow:0 24px 70px #0006}.tag{display:inline-block;color:#38c7ff;font-size:11px;letter-spacing:.1em;border:1px solid #238cbd66;border-radius:30px;background:#1da1f21a;padding:7px 13px}h1{font-size:clamp(26px,5vw,34px);line-height:1.15;margin:20px 0 12px}h1 span{color:#38c7ff}.copy{color:#b9c8dc;line-height:1.6;margin:0 0 24px;font-size:15px}.field{margin:0 0 18px}label{display:block;font-size:12px;font-weight:700;margin-bottom:8px;letter-spacing:.04em}input{width:100%;border:1px solid #31527b;border-radius:12px;background:#081a34;color:#f0f6ff;padding:14px 15px;font:inherit;min-height:50px;outline:none}input:focus{border-color:#38c7ff;box-shadow:0 0 0 3px #1da1f222}input::placeholder{color:#8299b7}.error{border:1px solid #ff8fa366;background:#ff8fa31a;padding:13px 15px;border-radius:12px;color:#ffb3c2;line-height:1.5;margin:0 0 20px}.error[hidden]{display:none}.button{display:block;width:100%;border:0;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;padding:16px;font:700 16px system-ui;cursor:pointer;min-height:54px}.button:disabled{opacity:.55;cursor:wait}.hint{color:#97acc7;font-size:12px;line-height:1.5;margin:14px 0 0}.footer{color:#8096b3;font-size:11px;text-align:center;margin:16px 0 0}@media(max-width:480px){body{padding:12px}.card{padding:24px 18px;border-radius:17px}h1{font-size:28px}}@media(max-height:650px){body{display:block}.page{margin:auto}.card{padding:22px}.copy{margin-bottom:18px}.field{margin-bottom:13px}}</style></head><body><main class=\"page\"><section class=\"card\"><div class=\"tag\">FLUJO 0 · REGISTRO INICIAL</div><h1>Registrar datos de la <span>gestión</span></h1><p class=\"copy\">Completa los datos del asesor y las referencias de la atención. Los tres campos son obligatorios.</p><div id=\"error\" class=\"error\" role=\"alert\"' + (message ? '' : ' hidden') + '>' + escapeHtml(message) + '</div><form id=\"initialForm\" method=\"POST\" action=\"' + escapeHtml(action) + '\"><input type=\"hidden\" name=\"workflow_session\" value=\"' + escapeHtml(session) + '\">' + fieldsHtml + '<button id=\"submit\" class=\"button\" type=\"submit\"' + (action ? '' : ' disabled') + '>Guardar datos iniciales</button></form><p class=\"hint\">Este registro inicial es independiente del diagnóstico. No solicita contraseña del asesor.</p></section><p class=\"footer\">© 2026 ETB · Empresa de Telecomunicaciones de Bogotá</p></main><script>(function(){var form=document.getElementById(\"initialForm\"),button=document.getElementById(\"submit\"),error=document.getElementById(\"error\");form.addEventListener(\"submit\",function(event){var fields=[\"usuario_asesor\",\"numero_conexion\",\"pqr\"];for(var index=0;index<fields.length;index++){var input=form.elements[fields[index]];input.value=input.value.trim();if(!input.value){event.preventDefault();error.hidden=false;error.textContent=\"Completa los tres campos antes de guardar.\";input.focus();return;}}if(!form.reportValidity()){event.preventDefault();return;}button.disabled=true;button.textContent=\"Guardando...\";});window.addEventListener(\"pageshow\",function(){button.disabled=!form.getAttribute(\"action\");button.textContent=\"Guardar datos iniciales\";});})();</script></body></html>';\nreturn [{ json: { html_response: html.replace('Este registro inicial es independiente del diagnóstico.', 'Este registro inicia la gestión y conserva su referencia durante todo el diagnóstico.') } }];\n"
       }
     },
     {
@@ -286,8 +353,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1960,
-        480
+        710,
+        1240
       ],
       "parameters": {
         "respondWith": "text",
@@ -382,14 +449,14 @@
       "main": [
         [
           {
-            "node": "Guardar Registro Inicial MySQL",
+            "node": "Guardar Registro Inicial PostgreSQL",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Guardar Registro Inicial MySQL": {
+    "Guardar Registro Inicial PostgreSQL": {
       "main": [
         [
           {
@@ -463,7 +530,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "flujo0-v2-datos-base-log-20261005",
+  "versionId": "postgres-flujo-0-20261008",
   "meta": {
     "templateCredsSetupCompleted": false
   },

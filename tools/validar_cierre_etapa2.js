@@ -40,7 +40,7 @@ for (const [name, field, answers, outcome] of scenarios) {
   assert.equal(row.workflow_session, session, `${name} pierde sesión`);
   assert.equal(row.resultado_etapa_2, outcome);
   assert.equal(row.next_step, 'fin_etapa_2');
-  const paramsExpression = nodes.get('Guardar Etapa 2 MySQL').parameters.options.queryReplacement;
+  const paramsExpression = nodes.get('Guardar Etapa 2 PostgreSQL').parameters.options.queryReplacement;
   const params = new Function('$json', 'return ' + paramsExpression.slice(3, -2).trim())(row);
   assert.equal(params.length, 14);
   assert.equal(params[0], session);
@@ -124,8 +124,8 @@ async function main() {
   const row = prepare({ query: { __workflow_session: session, tipo_sim: 'eSIM', servicio_post_qr: 'Si' } });
   const lookup = name => ({ first: () => ({ json: name === 'Preparar Registro Etapa 2 SQL' ? row : { workflow_session: session, public_base: 'https://n8n.example.test/base' } }) });
   const error = new Function('$json', '$execution', '$', nodes.get('HTML Error Persistencia Etapa 2').parameters.jsCode)({ message: 'ER_BAD_NULL_ERROR' }, execution, lookup)[0].json;
-  assert.ok(!error.html_response.includes('MySQL'));
-  assert.ok(!error.html_response.includes('CRM.GestionesFlujosLog'));
+  assert.ok(!error.html_response.includes('PostgreSQL'));
+  assert.ok(!error.html_response.includes('wflow.gestiones_log'));
   assert.ok(!error.html_response.includes('n8n para'));
   assert.ok(error.html_response.includes('Reintentar guardado'));
   assert.ok(!error.html_response.includes('/webhook-waiting/'));

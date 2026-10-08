@@ -52,7 +52,7 @@ for (const node of functional) {
 }
 
 const terminals = functional.filter((node) => !(outgoing.get(node.name) || []).length).map((node) => node.name).sort();
-const expectedTerminals = ['Responder Cierre Etapa 3', 'Responder Contexto Invalido Etapa 3'].sort();
+const expectedTerminals = ['Responder Cierre Etapa 3', 'Responder Contexto Invalido Etapa 3', 'Responder Guardado Pendiente Etapa 3'].sort();
 if (JSON.stringify(terminals) !== JSON.stringify(expectedTerminals)) fail(`Terminales inesperados: ${terminals.join(', ')}`);
 
 const waitIds = new Set();
@@ -131,17 +131,17 @@ try {
 const forbiddenNames = ['Form Iniciar Etapa 3', 'Form Confirmar Servicio Normalizado'];
 for (const name of forbiddenNames) if (nodes.has(name)) fail(`Nodo redundante presente: ${name}`);
 
-const lookup = nodes.get('Consultar Contexto Etapa 2 MySQL');
-if (!lookup?.parameters?.query?.includes('FROM CRM.GestionesFlujosLog')) fail('La consulta no fija CRM.GestionesFlujosLog');
-if (!lookup?.parameters?.query?.includes('WHERE workflowSession = $2')) fail('La consulta de etapa 3 reutiliza incorrectamente el parámetro $1');
+const lookup = nodes.get('Consultar Contexto Etapa 2 PostgreSQL');
+if (!lookup?.parameters?.query?.includes('FROM wflow.gestiones_log')) fail('La consulta no fija wflow.gestiones_log');
+if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $2')) fail('La consulta de etapa 3 reutiliza incorrectamente el parámetro $1');
 if (JSON.stringify(lookup?.parameters?.query?.match(/\$\d+/g)) !== JSON.stringify(['$1', '$2'])) fail('Los parámetros de etapa 3 no son posicionalmente seguros');
 if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.workflow_session ] }}') fail('Los parámetros de consulta de etapa 3 son incorrectos');
 for (const marker of [
   "resultado = 'continuar_parte_3'",
-  "nextStep = 'parte_3_configuracion_equipo'",
-  "JSON_EXTRACT(respuestasJson, '$.suma_ok')",
+  "next_step = 'parte_3_configuracion_equipo'",
+  "respuestas_json->>'suma_ok'",
   "IN ('PospagoConRecursos', 'PrepagoConRecursos')",
-  "codigoEtapa = 'diagnosticoSim'",
+  "codigo_etapa = 'diagnosticoSim'",
 ]) {
   if (!lookup?.parameters?.query?.includes(marker)) fail(`Contrato de entrada incompleto: ${marker}`);
 }
@@ -156,7 +156,7 @@ function simulate(scenario) {
   const visited = [];
   for (let guard = 0; guard < 120; guard += 1) {
     visited.push(current);
-    if (current === 'Guardar Etapa 3 MySQL') return { query, visited };
+    if (current === 'Guardar Etapa 3 PostgreSQL') return { query, visited };
     const node = nodes.get(current);
     if (!node) throw new Error(`Nodo inexistente: ${current}`);
     if (formConfig.has(current)) {
@@ -266,17 +266,17 @@ for (const scenario of scenarios) {
 }
 for (const form of forms) if (!coverage.has(form.name)) fail(`Ningún escenario cubre ${form.name}`);
 
-const save = nodes.get('Guardar Etapa 3 MySQL');
+const save = nodes.get('Guardar Etapa 3 PostgreSQL');
 const placeholders = save?.parameters?.query?.match(/\$\d+/g) || [];
 const maxPlaceholder = Math.max(...placeholders.map((value) => Number(value.slice(1))));
 const replacements = save?.parameters?.options?.queryReplacement?.match(/\$json\.[A-Za-z0-9_]+/g) || [];
-if (maxPlaceholder !== 14 || replacements.length !== 14) fail(`Contrato MySQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
-if (!save?.parameters?.query?.includes('INSERT INTO CRM.GestionesFlujosLog')) fail('El guardado no fija CRM.GestionesFlujosLog');
-if (!save?.parameters?.query?.includes('ON DUPLICATE KEY UPDATE')) fail('Guardado no idempotente');
+if (maxPlaceholder !== 14 || replacements.length !== 14) fail(`Contrato PostgreSQL inesperado: $${maxPlaceholder}, ${replacements.length} reemplazos`);
+if (!save?.parameters?.query?.includes('INSERT INTO wflow.gestiones_log')) fail('El guardado no fija wflow.gestiones_log');
+if (!save?.parameters?.query?.includes('ON CONFLICT')) fail('Guardado no idempotente');
 
 const summaryQuery = nodes.get('Consultar Resumen Gestion Actual');
-if (!summaryQuery?.parameters?.query?.includes('WHERE workflowSession = $1')) fail('El resumen no filtra por la sesión actual');
-if (!summaryQuery?.parameters?.query?.includes("codigoFlujo = 'ningunServicioFunciona'")) fail('El resumen no filtra por el flujo NSF');
+if (!summaryQuery?.parameters?.query?.includes('WHERE workflow_session = $1')) fail('El resumen no filtra por la sesión actual');
+if (!summaryQuery?.parameters?.query?.includes("codigo_flujo = 'ningunServicioFunciona'")) fail('El resumen no filtra por el flujo NSF');
 if (summaryQuery?.parameters?.options?.queryReplacement !== "={{ [ $('Preparar Registro Etapa 3 SQL').item.json.workflow_session ] }}") {
   fail('El resumen no toma la workflowSession del cierre técnico actual');
 }
@@ -326,11 +326,11 @@ const prepareObservationCode = prepareObservation?.parameters?.jsCode || '';
 if (!prepareObservationCode.includes('observaciones.length < 10')) fail('Las observaciones no se validan en servidor');
 if (!prepareObservationCode.includes('.slice(0, 2000)')) fail('Las observaciones no tienen límite de seguridad');
 
-const updateObservation = nodes.get('Guardar Observaciones Asesor MySQL');
+const updateObservation = nodes.get('Guardar Observaciones Asesor PostgreSQL');
 const updateSql = updateObservation?.parameters?.query || '';
 for (const marker of [
-  'UPDATE CRM.GestionesFlujosLog', "'$.observaciones_asesor'", "nextStep = 'fin_flujo'",
-  'WHERE workflowSession = $3', "codigoEtapa = 'configuracionEquipo'", 'numeroIntento = 1',
+  'UPDATE wflow.gestiones_log', "'observaciones_asesor'", "next_step = 'fin_flujo'",
+  'WHERE workflow_session = $3', "codigo_etapa = 'configuracionEquipo'", 'numero_intento = 1',
 ]) {
   if (!updateSql.includes(marker)) fail(`Guardado de observaciones incompleto: ${marker}`);
 }
@@ -339,13 +339,16 @@ if (updateObservation?.parameters?.options?.queryReplacement !== '={{ [ $json.ob
 }
 
 const closureChain = [
-  ['Guardar Etapa 3 MySQL', 'Consultar Resumen Gestion Actual'],
-  ['Consultar Resumen Gestion Actual', 'Form Resumen y Observaciones'],
+  ['Guardar Etapa 3 PostgreSQL', 'Confirmar Guardado Etapa 3'],
+  ['Confirmar Guardado Etapa 3', 'Consultar Resumen Gestion Actual'],
+  ['Consultar Resumen Gestion Actual', 'Verificar Resumen de Sesion'],
+  ['Verificar Resumen de Sesion', 'Form Resumen y Observaciones'],
   ['Form Resumen y Observaciones', 'Enviar Resumen y Observaciones'],
   ['Enviar Resumen y Observaciones', 'Espera Observaciones Asesor'],
   ['Espera Observaciones Asesor', 'Preparar Observaciones Asesor'],
-  ['Preparar Observaciones Asesor', 'Guardar Observaciones Asesor MySQL'],
-  ['Guardar Observaciones Asesor MySQL', 'HTML Cierre Definitivo'],
+  ['Preparar Observaciones Asesor', 'Guardar Observaciones Asesor PostgreSQL'],
+  ['Guardar Observaciones Asesor PostgreSQL', 'Confirmar Observaciones Asesor'],
+  ['Confirmar Observaciones Asesor', 'HTML Cierre Definitivo'],
   ['HTML Cierre Definitivo', 'Responder Cierre Etapa 3'],
 ];
 for (const [source, destination] of closureChain) {
@@ -355,11 +358,11 @@ for (const [source, destination] of closureChain) {
 const finalResponse = nodes.get('Responder Cierre Etapa 3');
 if (finalResponse?.parameters?.responseBody !== '={{ $json.html_response }}') fail('El cierre definitivo no devuelve HTML');
 
-const ddl = fs.readFileSync(path.join(root, 'database', '00_GestionesFlujosLog_Workbench.sql'), 'utf8');
+const ddl = fs.readFileSync(path.join(root, 'database', 'postgres', '00_Estructura.sql'), 'utf8');
 for (const marker of [
-  'USE CRM;', 'CRM.GestionesFlujosLog',
-  'CREATE OR REPLACE VIEW CRM.VwNsfTrazabilidad',
-  'CREATE OR REPLACE VIEW CRM.VwNsfResumen',
+  'CREATE SCHEMA IF NOT EXISTS wflow', 'wflow.gestiones_log',
+  'CREATE OR REPLACE VIEW wflow.vw_nsf_trazabilidad',
+  'CREATE OR REPLACE VIEW wflow.vw_nsf_resumen',
 ]) {
   if (!ddl.includes(marker)) fail(`DDL incompleto: ${marker}`);
 }

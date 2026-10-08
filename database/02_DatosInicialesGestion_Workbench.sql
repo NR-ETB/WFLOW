@@ -196,7 +196,8 @@ CALL CRM.MigrarDatosInicialesExistentes();
 DROP PROCEDURE CRM.MigrarDatosInicialesExistentes;
 
 -- Copia automática al insertar o actualizar cualquier etapa de la misma sesión.
--- No se exige registro inicial al historial ni a los flujos todavía independientes.
+-- Los registros nuevos de otras etapas también requieren un inicio confirmado.
+-- El historial se conserva; sus actualizaciones no necesitan inventar datos.
 DROP TRIGGER IF EXISTS CRM.trgGFLogDatosInicialesInsert;
 DROP TRIGGER IF EXISTS CRM.trgGFLogDatosInicialesUpdate;
 DELIMITER $$
@@ -214,6 +215,8 @@ BEGIN
         SET NEW.usuarioAsesor = vUsuario, NEW.numeroConexion = vConexion, NEW.pqr = vPqr;
     ELSEIF NEW.codigoFlujo = 'inicioGestion' AND NEW.codigoEtapa = 'registroInicial' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El flujo inicial debe guardarse con RegistrarInicioGestion.';
+    ELSEIF COALESCE(NEW.numeroEtapa, 0) > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Inicia la gestion desde el flujo 0 antes de guardar otra etapa.';
     END IF;
 END$$
 CREATE TRIGGER CRM.trgGFLogDatosInicialesUpdate BEFORE UPDATE ON CRM.GestionesFlujosLog
@@ -230,6 +233,8 @@ BEGIN
         SET NEW.usuarioAsesor = vUsuario, NEW.numeroConexion = vConexion, NEW.pqr = vPqr;
     ELSEIF NEW.codigoFlujo = 'inicioGestion' AND NEW.codigoEtapa = 'registroInicial' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El flujo inicial debe guardarse con RegistrarInicioGestion.';
+    ELSEIF COALESCE(NEW.numeroEtapa, 0) > 0 AND NOT (NEW.workflowSession <=> OLD.workflowSession) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La nueva sesion debe tener un registro inicial.';
     END IF;
 END$$
 DELIMITER ;
