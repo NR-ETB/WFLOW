@@ -174,8 +174,8 @@ const expectedCoverageValues = [
 if (JSON.stringify(coverageCfg?.options?.map((option) => option.value)) !== JSON.stringify(expectedCoverageValues)) {
   errors.push('La cobertura no contempla las cuatro combinaciones de viaje y señal');
 }
-if (coverageCfg?.title !== 'Validar sin cobertura y condición de {accent}') {
-  errors.push('El título de la validación no usa "sin cobertura"');
+if (coverageCfg?.title !== 'Validar mapa de cobertura y condición de {accent}') {
+  errors.push('El título de cobertura no coincide con "Validar mapa de cobertura y condición de viaje"');
 }
 if (coverageCfg?.options?.some((option) => /roaming/i.test(option.label))) {
   errors.push('La validación de cobertura todavía menciona roaming');
@@ -204,7 +204,7 @@ for (const marker of ['function syncPaymentButton()', '"Confirmar y reconectar":
 const imeiPublic = names.get('Form Consultar Registro IMEI');
 const imeiCode = imeiPublic?.parameters?.jsCode || '';
 for (const marker of [
-  'https://tramitescrcom.gov.co/consultaestadoequipo/',
+  'https://www.imeicolombia.com.co/',
   'id="imeiPublicLink"', 'name="consulta_imei_abierta"',
   'data.get("consulta_imei_abierta")!=="Si"',
 ]) {

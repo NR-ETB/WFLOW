@@ -175,7 +175,7 @@ function addCoverageStep(workflow) {
     form.position = [-550, 360];
     patchCfg(form, {
       field: 'cobertura_viaje',
-      title: 'Validar sin cobertura y condición de {accent}',
+      title: 'Validar mapa de cobertura y condición de {accent}',
       titleAccent: 'viaje',
       question: 'VALIDACIÓN EN LA PÁGINA DE ETB',
       subtitle: 'Consulta la cobertura en ETB y confirma si el cliente está de viaje antes de continuar.',
@@ -214,7 +214,7 @@ function addCoverageStep(workflow) {
 
   const coverageForm = get(workflow, 'Form Validar Cobertura y Viaje');
   patchCfg(coverageForm, {
-    title: 'Validar sin cobertura y condición de {accent}',
+    title: 'Validar mapa de cobertura y condición de {accent}',
     subtitle: 'Abre el mapa de cobertura móvil ETB, valida la zona y confirma si el cliente está de viaje.',
     options: [
       { value: 'NoViajeConCobertura', label: 'No está de viaje, sí tiene cobertura' },
@@ -305,7 +305,7 @@ function requireImeiLink(workflow) {
   patchCfg(node, {
     subtitle: 'Abre la Consulta Pública SRTM, consulta el IMEI y luego confirma el resultado. El flujo no permite continuar sin abrir el enlace.',
     errorMsg: 'Primero abre la Consulta Pública SRTM y selecciona el resultado',
-    requiredLink: 'https://tramitescrcom.gov.co/consultaestadoequipo/',
+    requiredLink: 'https://www.imeicolombia.com.co/',
     requiredLinkLabel: 'Abrir consulta pública del IMEI',
   });
   let code = node.parameters.jsCode;
