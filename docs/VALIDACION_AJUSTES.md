@@ -1,10 +1,10 @@
-# Validación de ajustes y trazabilidad — 8 de octubre de 2026
+# Validación de ajustes y trazabilidad — actualización del 26 de octubre de 2026
 
 ## Resultado y alcance
 
-Los cuatro archivos del repositorio pasan once suites locales. Además, se han
-probado setenta renders en Edge sin ventana, a 360 y 1366 píxeles, con toda
-solicitud de red bloqueada. Veinte recorridos utilizan campos HTML, código y
+Los cuatro archivos del repositorio pasan quince suites locales. Las pruebas
+de interfaz usan Edge sin ventana, a 360 y 1366 píxeles, con las solicitudes de
+red simuladas o bloqueadas. Veintitrés recorridos utilizan campos HTML, código y
 parámetros SQL reales de los JSON contra PostgreSQL en memoria (PGlite).
 
 Esto no confirma la base productiva ni reproduce el motor de ejecución/Wait de
@@ -12,6 +12,9 @@ n8n. No se dispone de una conexión autenticada a CRM_N8N. No se han publicado
 workflows, cambiado credenciales ni enviado formularios de prueba al servidor.
 
 ## Diferencias encontradas en la publicación
+
+Observaciones históricas del 8 de octubre; no son una nueva comprobación de la
+publicación del 26 de octubre. Los cambios actuales se validan localmente.
 
 Consultas GET a `https://n8n.srv1479096.hstgr.cloud/webhook/`:
 
@@ -66,7 +69,7 @@ siguen siendo necesarias; el requisito de «solo inserts» se aplica al flujo 0.
 
 ## Reproducción y aceptación productiva
 
-1. Ejecutar `node tools/validar_todo.js` para las once suites locales.
+1. Ejecutar `node tools/validar_todo.js` para las quince suites locales.
 2. Ejecutar `node tools/validar_interfaz.js` con Playwright disponible mediante
    `NODE_PATH` y Edge instalado. El navegador se ejecuta sin ventana y bloquea red.
 3. Ejecutar `node tools/inspeccionar_publicacion.js` para diagnóstico GET. Código
@@ -79,8 +82,83 @@ siguen siendo necesarias; el requisito de «solo inserts» se aplica al flujo 0.
    PostgreSQL de CRM_N8N a los diez nodos. No mezclar versiones ni bases en una sesión.
 7. Desde flujo 0, ejecutar gestiones de aceptación identificables y comprobar
    en CRM_N8N una cabecera y los logs de inicio/etapas correspondientes. Probar
-   los tres estados SUMA, QR, NIP, sincronización y segundo nivel, incluido volver.
+   los cuatro estados SUMA, QR, NIP, sincronización y segundo nivel, incluido volver.
 8. Comprobar cierre y observaciones en el log antes de declarar producción validada.
+
+## Nueva atención en la misma pestaña
+
+Las pantallas de cierre de las etapas 1 y 2 y el cierre definitivo de la etapa 3
+incluyen «Iniciar nueva gestión». El enlace abre la entrada publicada del flujo 0
+en la misma pestaña, fuera del iframe de respuesta de n8n. No transmite la sesión
+anterior, respuestas ni datos iniciales. El flujo 0 genera una nueva referencia y
+muestra los tres campos vacíos. La gestión anterior y su log se conservan.
+
+Se eliminaron las instrucciones «Modo de prueba» y «Test workflow» de las pantallas.
+El enlace de reinicio usa producción también desde una ejecución de prueba; requiere
+que el flujo 0 esté publicado. Las transiciones entre etapas conservan su sesión y
+no se sustituyen por el reinicio. No se muestra un cierre correcto cuando PostgreSQL
+no confirma el guardado. Importar y publicar las tres etapas actualizadas para
+que el cambio llegue a los asesores; editar el repositorio no cambia n8n remoto.
 
 No reutilizar la contraseña expuesta en capturas. Rotarla y suministrar acceso
 por un canal seguro, nunca mediante archivos versionados o mensajes del chat.
+
+## Cierres GESTFAC y sincronización · 26 de octubre de 2026
+
+Las dos pantallas envían «Finalizar» mediante navegación normal al Wait activo,
+sin esperar un fetch desde el iframe. Después de guardar y confirmar la fila en
+PostgreSQL, el workflow devuelve el cierre HTML y el botón para una nueva atención.
+Las otras salidas conservan su respuesta `OK`, y Tipo SIM conserva el handoff.
+
+Cuando se elige que no fue posible enviar o escalar, el log registra `Pendiente`
+y la pantalla no afirma que el caso fue enviado. Las pruebas locales cubren ambas
+respuestas en modo prueba/producción y rechazan confirmaciones de otra sesión.
+No se ha verificado este cambio contra el motor Wait de n8n remoto.
+
+Actualización posterior del 26 de octubre: se retiraron las opciones negativas
+en GESTFAC y sincronización. Ambas pantallas solo muestran una confirmación de
+envío/escalamiento realizado. La recepción de respuestas negativas antiguas se
+mantiene compatible y no se presenta como envío exitoso.
+
+## Premisas, reenvío y renovación QR · 26 de octubre de 2026
+
+Después de «No, la falla continúa» se muestran las premisas entregadas por el
+usuario: requisitos, pasos Android, pasos iPhone y recomendaciones. «SÍ FUNCIONA»
+continúa al soporte normal; «NO FUNCIONA» abre el reenvío manual desde SUMA.
+El asesor confirma mediante una casilla que reenvió el QR e informó al cliente.
+El flujo no realiza el reenvío automáticamente ni afirma haberlo hecho.
+
+En el reenvío, «SÍ FUNCIONA» continúa al soporte normal; «NO FUNCIONA» abre el
+trámite de renovación con la misma visual y plantilla QR de seis campos.
+La salida posterior al reenvío usa `gestor_qr_renovacion`; la salida histórica
+por más de 24 horas conserva `gestor_qr_vencido`. Se registran `qr_premisas_ok`,
+`qr_reenvio_confirmado` y `qr_reenvio_ok` en los JSON de respuestas/contexto del
+log, sin cambiar la estructura de las tablas. El resumen de etapa 3 muestra
+esas validaciones cuando la gestión continúa al soporte.
+
+SUMA añade «Activo sin recursos o recursos incompletos (pospago)». Usa el mismo
+cierre «No aplica falla» que prepago, conserva su valor `PospagoSinRecursos` en
+el log y no permite entrar a la etapa 3 sin recursos disponibles.
+
+Las notas del canvas incluyen las reglas de la nueva secuencia. Ejecutar
+`node tools/validar_interfaz_qr.js` con Playwright disponible para las pruebas
+de las nuevas pantallas. Importar/publicar etapas 2 y 3 compatibles; no se ha
+modificado la publicación remota ni ejecutado acciones reales en SUMA.
+
+## Saldo pendiente y enlace IMEI · 26 de octubre de 2026
+
+«No, tiene saldo pendiente» ya no finaliza directamente ni muestra «Confirmar y
+reconectar». Abre un paso con el texto de pago obligatorio entregado por el usuario.
+Después de confirmar que el cliente fue informado, la gestión se registra con
+resultado `pago_pendiente`, estado `Pendiente` y `pago_pendiente_informado=Si` en
+respuestas/contexto del log. No continúa al diagnóstico ni asegura una reconexión.
+Volver permite regresar a la validación de pagos.
+
+La consulta de IMEI apunta exactamente a `https://www.imeicolombia.com.co/` y
+mantiene la obligación de abrir el enlace antes de continuar. Se actualizó la
+prueba de regresión para rechazar la URL anterior. La comprobación web del sitio
+devolvió timeout; no se certifica su disponibilidad externa.
+
+`aplicar_cierres_etapa1.js` conserva las confirmaciones únicas y
+`aplicar_pago_imei.js` conserva el nuevo paso y enlace al regenerar mediante
+`preparar_postgres.js`. Publicar la etapa 1 actualizada para llevarlo a n8n.

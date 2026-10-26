@@ -79,19 +79,28 @@ Vistas del diagnóstico: `wflow.vw_nsf_trazabilidad` y `wflow.vw_nsf_resumen`.
 
 - Cobertura y viaje: cuatro combinaciones. Abrir el mapa ETB es obligatorio para
   continuar; la pantalla muestra ese requisito.
-- Pagos: cuenta al día muestra Siguiente; saldo pendiente exige Confirmar y reconectar.
-- IMEI: abrir consulta pública es obligatorio. IMEI bloqueado/no registrado
+- Pagos: cuenta al día continúa al diagnóstico. Saldo pendiente abre el aviso de
+  pago obligatorio y registra que el cliente fue informado antes de cerrar. No
+  afirma que se haya hecho una reconexión automática.
+- IMEI: abrir `https://www.imeicolombia.com.co/` es obligatorio. IMEI bloqueado/no registrado
   deriva a documentación, cuyo canal se registra.
 - Únicamente SIM física y eSIM.
+- GESTFAC y sincronización: solo se muestra la confirmación de escalamiento
+  realizado; se retiraron las opciones de envío/escalamiento no realizado.
 - QR: instalado/reutilizado dentro de 24 horas conduce a confirmar funcionalidad.
-  Si funciona, cierra como `servicio_normalizado_qr`; si falla, continúa soporte.
+  Si funciona, cierra como `servicio_normalizado_qr`; si falla, muestra las premisas
+  Android/iPhone. Si el QR funciona tras aplicarlas, continúa al soporte normal.
+  Si no funciona, el asesor reenvía el QR manualmente desde SUMA y confirma la acción.
+  Si ese QR funciona, continúa soporte; de lo contrario crea el trámite de renovación
+  con la plantilla QR. El log registra `gestor_qr_renovacion` y las respuestas previas.
   QR sin funcionar tras 24 horas requiere escalamiento y plantilla específica.
 - NIP recibido o pendiente: CRM BAM, sin plantilla, porque la venta corresponde
   a otro aliado. Vencimiento: nueva gestión según procedimiento del aliado
   (formulario Konecta, Soul COS), sin plantilla; una sola confirmación de escalamiento.
 - SUMA: Activo y con recursos (pospago), Activo y con recursos (prepago), Activo
-  sin recursos o recursos incompletos (prepago). Las dos primeras siguen a etapa 3.
-  La tercera muestra cierre `no_aplica_sin_recursos`: no aplica falla si faltan
+  sin recursos o recursos incompletos (prepago) y Activo sin recursos o recursos
+  incompletos (pospago). Las dos primeras siguen a etapa 3.
+  Ambas opciones sin recursos muestran cierre `no_aplica_sin_recursos`: no aplica falla si faltan
   datos, minutos o SMS necesarios para el servicio afectado.
 - Cierres de etapa 2 usan `etb-form-parte-2-continuar`, no un Wait terminado.
 - SMS sigue la ruta de llamadas en etapa 3. eSIM omite prueba cruzada física;
