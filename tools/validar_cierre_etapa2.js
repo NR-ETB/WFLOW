@@ -30,6 +30,7 @@ const scenarios = [
   ['Form Escalar CRM BAM', 'crm_bam_ok', { nip_estado: 'Recibido' }, 'escalado_crm_bam'],
   ['Form Escalar CRM BAM', 'crm_bam_ok', { nip_estado: 'Pendiente' }, 'escalado_crm_bam'],
   ['Form Cierre Sin Recursos', 'cierre_sin_recursos_ok', { suma_ok: 'PrepagoSinRecursos' }, 'no_aplica_sin_recursos'],
+  ['Form Cierre Sin Recursos', 'cierre_sin_recursos_ok', { suma_ok: 'PospagoSinRecursos' }, 'no_aplica_sin_recursos'],
 ];
 for (const [name, field, answers, outcome] of scenarios) {
   const html = render(name, { workflow_session: session, tipo_sim: 'eSIM', ...answers });
@@ -60,7 +61,7 @@ async function testClient(status, body, rejects = false, selected = 'Si') {
   const query = submitted(html, 'servicio_post_qr', selected);
   const listeners = {};
   const windowListeners = {};
-  const card = { innerHTML: '' };
+  const card = { innerHTML: '', querySelector() { return { appendChild() {} }; } };
   const label = { textContent: '', innerHTML: '' };
   const button = { disabled: false, setAttribute() {}, querySelector() { return label; } };
   const error = { textContent: '', style: {}, classList: { add() {}, remove() {} } };
@@ -76,6 +77,7 @@ async function testClient(status, body, rejects = false, selected = 'Si') {
   let requested = '';
   const context = {
     document: {
+      createElement() { return { style: {} }; },
       getElementById(id) { return ({ f: form, errBanner: error, submitBtn: button })[id] || null; },
       querySelector() { return card; },
     },
@@ -133,6 +135,6 @@ async function main() {
   assert.equal(new URL(retryUrl).searchParams.get('workflow_session'), session);
   assert.equal(new URL(retryUrl).searchParams.get('servicio_post_qr'), 'Si');
   assert.equal(error.persistence_diagnostic.message, 'ER_BAD_NULL_ERROR');
-  console.log('OK: 7 cierres con campos HTML reales, 2 continuidades SUMA, 5 casos frontend y recuperación segura.');
+  console.log('OK: 8 cierres con campos HTML reales, 2 continuidades SUMA, 5 casos frontend y recuperación segura.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -250,7 +250,7 @@ const sumaForm = nodes2.get('Form Validar SUMA');
 const sumaCfgMatch = String(sumaForm?.parameters?.jsCode || '').match(/^const cfg = (\{.*\});$/m);
 const sumaCfg = sumaCfgMatch ? JSON.parse(sumaCfgMatch[1]) : {};
 if (sumaCfg.handoffPath !== 'etb-form-parte-2-continuar' ||
-    JSON.stringify(sumaCfg.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos', 'PrepagoSinRecursos'])) {
+    JSON.stringify(sumaCfg.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos', 'PrepagoSinRecursos', 'PospagoSinRecursos'])) {
   fail('El formulario SUMA no entrega su respuesta positiva al webhook puente.');
 }
 try {

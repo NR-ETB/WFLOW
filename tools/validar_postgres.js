@@ -109,8 +109,10 @@ async function main() {
       executeCode(2, 'Confirmar Guardado Etapa 2', ack2, { workflow_session: session });
       assert.equal((await db.query(contracts.etapa2, [session, session])).rows[0].contexto_valido, 'Si');
     }
-    await db.query(contracts.guardar, stageParams(2, 'no_aplica_sin_recursos', 'fin_etapa_2', { tipo_sim: 'eSIM', suma_ok: 'PrepagoSinRecursos' }));
-    assert.equal((await db.query(contracts.etapa2, [session, session])).rows[0].contexto_valido, 'No');
+    for (const suma of ['PrepagoSinRecursos', 'PospagoSinRecursos']) {
+      await db.query(contracts.guardar, stageParams(2, 'no_aplica_sin_recursos', 'fin_etapa_2', { tipo_sim: 'eSIM', suma_ok: suma }));
+      assert.equal((await db.query(contracts.etapa2, [session, session])).rows[0].contexto_valido, 'No');
+    }
     await db.query(contracts.guardar, stageParams(2, 'continuar_parte_3', 'parte_3_configuracion_equipo', { tipo_sim: 'eSIM', suma_ok: 'PrepagoConRecursos' }));
     const ack3 = (await db.query(contracts.guardar, stageParams(3, 'escalado_segundo_nivel', 'cierre_asesor', { tipo_falla_equipo: 'SMS' }))).rows[0];
     executeCode(3, 'Confirmar Guardado Etapa 3', ack3, { workflow_session: session });

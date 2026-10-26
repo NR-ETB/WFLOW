@@ -134,12 +134,14 @@ for (const form of forms) {
   if (form.name !== 'Form Cierre Sin Recursos' && wait && (wait.parameters.resume !== 'webhook' || wait.parameters.responseMode !== 'responseNode')) fail(`Espera incorrecta en ${waitName}`);
 }
 
-if (forms.length !== 10) fail(`Cantidad inesperada de formularios: ${forms.length}`);
+if (forms.length !== 12) fail(`Cantidad inesperada de formularios: ${forms.length}`);
 
 const expectedBack = {
   'IF Volver Gestionar QR': 'Form Gestionar QR',
   'IF Volver Confirmar Funcionalidad Post QR': 'Form Gestionar QR',
-  'IF Volver Escalar Gestor QR': 'Form Gestionar QR',
+  'IF Volver Escalar Gestor QR': 'IF Renovacion Desde Reenvio QR',
+  'IF Volver Premisas SIM Virtual': 'Form Confirmar Funcionalidad Post QR',
+  'IF Volver Reenvio QR SUMA': 'Form Premisas SIM Virtual',
   'IF Volver Verificar Portacion': 'Form Linea Portada',
   'IF Volver Estado NIP': 'Form Verificar Portacion',
   'IF Volver Escalar CRM BAM': 'Form Estado NIP',
@@ -179,21 +181,26 @@ function simulate(scenario) {
       if (!selected || !cfg.options.some((option) => String(option.value) === selected)) {
         throw new Error(`Falta respuesta válida para ${cfg.field} en ${current}`);
       }
-      const cleaned = Object.fromEntries(Object.entries(query).filter(([key]) => !['__back', '__outcome', '__next_step', cfg.field].includes(key)));
-      query = { ...cleaned, [cfg.field]: selected };
-      if (cfg.outcome) query.__outcome = cfg.outcome;
-      if (cfg.nextStep) query.__next_step = cfg.nextStep;
+      const html = new Function('$json', '$execution', node.parameters.jsCode)({ query },
+        { id: 'simulacion-qr', resumeUrl: 'https://n8n.test/webhook-waiting/qr' })[0].json.html_response;
+      const decode = text => text.replace(/&(amp|quot|lt|gt|#39);/g, (_, key) => ({ amp: '&', quot: '"', lt: '<', gt: '>', '#39': "'" })[key]);
+      query = Object.fromEntries([...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/g)]
+        .map(match => [decode(match[1]), decode(match[2])]));
+      query[cfg.field] = selected;
+      if (current === 'Form Reenvio QR SUMA') query.qr_reenvio_confirmado = scenario.answers.qr_reenvio_confirmado;
     }
     if (current === 'Marcar Cierre Servicio Post QR') {
       const result = new Function('$json', node.parameters.jsCode)({ query })?.[0]?.json;
       query = result?.query || query;
     }
     if (node.type === 'n8n-nodes-base.if') {
-      const condition = node.parameters.conditions.conditions[0];
-      const fieldMatch = condition.leftValue.match(/\$json\.query\.([A-Za-z0-9_]+)/);
-      if (!fieldMatch) throw new Error(`IF no interpretable: ${current}`);
-      const actual = fieldMatch[1] === '__back' ? undefined : query[fieldMatch[1]];
-      current = target(current, actual === condition.rightValue ? 0 : 1);
+      const conditions = node.parameters.conditions;
+      const results = conditions.conditions.map(condition => {
+        const expression = condition.leftValue.slice(3, -2).trim();
+        const actual = new Function('$json', 'return ' + expression)({ query });
+        return actual === condition.rightValue;
+      });
+      current = target(current, (conditions.combinator === 'or' ? results.some(Boolean) : results.every(Boolean)) ? 0 : 1);
     } else {
       const edges = outgoing.get(current) || [];
       if (edges.length !== 1) throw new Error(`${current} tiene ${edges.length} salidas`);
@@ -210,7 +217,7 @@ const scenarios = [
   },
   {
     name: 'eSIM instalada pero la falla continúa a soporte', tipo_sim: 'eSIM', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
-    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'No', suma_ok: 'PospagoConRecursos' },
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', qr_premisas_ok: 'Si', linea_portada: 'No', suma_ok: 'PospagoConRecursos' },
   },
   {
     name: 'eSIM QR vencido escalado', tipo_sim: 'eSIM', outcome: 'gestor_qr_vencido', next: 'fin_etapa_2',
@@ -218,11 +225,11 @@ const scenarios = [
   },
   {
     name: 'eSIM NIP pendiente escalado a CRM BAM', tipo_sim: 'eSIM', outcome: 'escalado_crm_bam', next: 'fin_etapa_2',
-    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Pendiente', crm_bam_ok: 'Si' },
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', qr_premisas_ok: 'Si', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Pendiente', crm_bam_ok: 'Si' },
   },
   {
     name: 'eSIM NIP vencido', tipo_sim: 'eSIM', outcome: 'gestor_nip_vencido', next: 'fin_etapa_2',
-    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Vencido', gestor_nip_ok: 'Si' },
+    answers: { inicio_etapa2: 'Si', qr_estado: 'Instalado', servicio_post_qr: 'No', qr_premisas_ok: 'Si', linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Vencido', gestor_nip_ok: 'Si' },
   },
   {
     name: 'física continúa etapa 3', tipo_sim: 'Fisica', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
@@ -231,6 +238,22 @@ const scenarios = [
   {
     name: 'prepago sin recursos cierra sin falla', tipo_sim: 'Fisica', outcome: 'no_aplica_sin_recursos', next: 'fin_etapa_2',
     answers: { inicio_etapa2: 'Si', linea_portada: 'No', suma_ok: 'PrepagoSinRecursos', cierre_sin_recursos_ok: 'Si' },
+  },
+  {
+    name: 'QR antes de 24 horas funciona tras premisas', tipo_sim: 'eSIM', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
+    answers: { qr_estado: 'Menos24', servicio_post_qr: 'No', qr_premisas_ok: 'Si', linea_portada: 'No', suma_ok: 'PrepagoConRecursos' },
+  },
+  {
+    name: 'QR funciona tras reenvío manual', tipo_sim: 'eSIM', outcome: 'continuar_parte_3', next: 'parte_3_configuracion_equipo',
+    answers: { qr_estado: 'Menos24', servicio_post_qr: 'No', qr_premisas_ok: 'No', qr_reenvio_confirmado: 'Si', qr_reenvio_ok: 'Si', linea_portada: 'No', suma_ok: 'PospagoConRecursos' },
+  },
+  {
+    name: 'QR no funciona tras premisas y reenvío: renovación', tipo_sim: 'eSIM', outcome: 'gestor_qr_renovacion', next: 'fin_etapa_2',
+    answers: { qr_estado: 'Menos24', servicio_post_qr: 'No', qr_premisas_ok: 'No', qr_reenvio_confirmado: 'Si', qr_reenvio_ok: 'No', gestor_qr_ok: 'Si' },
+  },
+  {
+    name: 'pospago sin recursos cierra sin falla', tipo_sim: 'Fisica', outcome: 'no_aplica_sin_recursos', next: 'fin_etapa_2',
+    answers: { linea_portada: 'No', suma_ok: 'PospagoSinRecursos', cierre_sin_recursos_ok: 'Si' },
   },
   {
     name: 'NIP recibido escalado a CRM BAM', tipo_sim: 'Fisica', outcome: 'escalado_crm_bam', next: 'fin_etapa_2',
@@ -334,12 +357,13 @@ const expectedSumaOptions = [
   ['PospagoConRecursos', 'Activo y con recursos (pospago)'],
   ['PrepagoConRecursos', 'Activo y con recursos (prepago)'],
   ['PrepagoSinRecursos', 'Activo sin recursos o recursos incompletos (prepago)'],
+  ['PospagoSinRecursos', 'Activo sin recursos o recursos incompletos (pospago)'],
 ];
 if (JSON.stringify(sumaCfg?.options?.map((option) => [option.value, option.label])) !== JSON.stringify(expectedSumaOptions)) {
-  fail('Validar SUMA no muestra las tres opciones operativas solicitadas');
+  fail('Validar SUMA no muestra las cuatro opciones operativas solicitadas');
 }
 if (sumaCfg?.handoffPath !== 'etb-form-parte-2-continuar' ||
-    JSON.stringify(sumaCfg?.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos', 'PrepagoSinRecursos'])) {
+    JSON.stringify(sumaCfg?.handoffWhen?.suma_ok) !== JSON.stringify(['PospagoConRecursos', 'PrepagoConRecursos', 'PrepagoSinRecursos', 'PospagoSinRecursos'])) {
   fail('Validar SUMA no publica la ruta positiva en el webhook puente');
 }
 const sumaCode = nodes.get('Form Validar SUMA')?.parameters?.jsCode || '';
@@ -436,7 +460,7 @@ const postQrCfg = formConfig.get('Form Confirmar Funcionalidad Post QR');
 if (postQrCfg?.field !== 'servicio_post_qr' ||
     JSON.stringify(postQrCfg?.options?.map((option) => option.value)) !== JSON.stringify(['Si', 'No']) ||
     target('IF Servicio Post QR Funciona', 0) !== 'Marcar Cierre Servicio Post QR' ||
-    target('IF Servicio Post QR Funciona', 1) !== 'Form Linea Portada') {
+    target('IF Servicio Post QR Funciona', 1) !== 'Form Premisas SIM Virtual') {
   fail('La confirmación posterior al QR no cierra o continúa al soporte eSIM correctamente');
 }
 for (const obsolete of [

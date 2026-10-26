@@ -114,7 +114,8 @@ for (const node of functional.filter((item) => item.type === 'n8n-nodes-base.cod
   const outcomeLines = (node.parameters.jsCode.match(/if \(cfg\.outcome\) rows\.push/g) || []).length;
   if (outcomeLines !== 1) errors.push(`Marcador de salida repetido o ausente en ${node.name}: ${outcomeLines}`);
   if (!node.parameters.jsCode.includes('$execution.mode')) errors.push(`Formulario sin detección de modo: ${node.name}`);
-  if (!node.parameters.jsCode.includes('Modo de prueba: vuelve a n8n')) errors.push(`Formulario sin cierre de prueba: ${node.name}`);
+  if (!node.parameters.jsCode.includes('Iniciar nueva gestión')) errors.push(`Formulario sin regreso al flujo 0: ${node.name}`);
+  if (node.parameters.jsCode.includes('Test workflow')) errors.push(`Formulario conserva instrucciones de prueba: ${node.name}`);
   if (node.parameters.jsCode.includes('function getStartUrl()')) errors.push(`Redirección antigua presente: ${node.name}`);
   if (!node.parameters.jsCode.includes('height:56px')) errors.push(`Altura uniforme ausente: ${node.name}`);
   for (const responsiveMarker of ['100svh', '@media(max-width:900px)', '@media(max-width:480px)', '@media(min-width:901px) and (max-width:1600px)', 'orientation:landscape', 'prefers-reduced-motion', 'safe-area-inset-top', 'max-width:620px', 'grid-template-columns:1fr']) {
@@ -174,8 +175,8 @@ const expectedCoverageValues = [
 if (JSON.stringify(coverageCfg?.options?.map((option) => option.value)) !== JSON.stringify(expectedCoverageValues)) {
   errors.push('La cobertura no contempla las cuatro combinaciones de viaje y señal');
 }
-if (coverageCfg?.title !== 'Validar sin cobertura y condición de {accent}') {
-  errors.push('El título de la validación no usa "sin cobertura"');
+if (coverageCfg?.title !== 'Validar mapa de cobertura y condición de {accent}') {
+  errors.push('El título de cobertura no coincide con "Validar mapa de cobertura y condición de viaje"');
 }
 if (coverageCfg?.options?.some((option) => /roaming/i.test(option.label))) {
   errors.push('La validación de cobertura todavía menciona roaming');
@@ -197,14 +198,14 @@ for (const marker of [
 }
 const paymentForm = names.get('Form Confirmar Pago');
 const paymentCode = paymentForm?.parameters?.jsCode || '';
-for (const marker of ['function syncPaymentButton()', '"Confirmar y reconectar":"Siguiente"']) {
+for (const marker of ['function syncPaymentButton()', '"Continuar":"Siguiente"']) {
   if (!paymentCode.includes(marker)) errors.push(`El botón de pagos no cambia según el saldo: falta ${marker}`);
 }
 
 const imeiPublic = names.get('Form Consultar Registro IMEI');
 const imeiCode = imeiPublic?.parameters?.jsCode || '';
 for (const marker of [
-  'https://tramitescrcom.gov.co/consultaestadoequipo/',
+  'https://www.imeicolombia.com.co/',
   'id="imeiPublicLink"', 'name="consulta_imei_abierta"',
   'data.get("consulta_imei_abierta")!=="Si"',
 ]) {

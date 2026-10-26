@@ -66,6 +66,7 @@ async function main() {
     const endings1 = [
       ['Form Escalar GESTFAC', { linea_activa: 'No' }, { escalado_ok: 'Si' }, 'gestfac', 'Escalada'],
       ['Form Escalar Gestor', { iccid_valido: 'No' }, { gestor_ok: 'Si' }, 'gestor_sincronizacion', 'Escalada'],
+      ['Form Saldo Pendiente', { pago_al_dia: 'No' }, { pago_pendiente_informado: 'Si' }, 'pago_pendiente', 'Pendiente'],
       ...['TransferirDocumentacion', 'GestionarCanalDigital', 'GestionDigitalRealizada'].map(value =>
         ['Form Enviar Doc', { registro_imei_ok: 'No' }, { doc_enviada: value }, null, 'Completada']),
     ];
@@ -79,10 +80,12 @@ async function main() {
       ['Form Confirmar Funcionalidad Post QR', { qr_estado: 'Instalado' }, { servicio_post_qr: 'Si' }, 'servicio_normalizado_qr', 'Completada'],
       ['Form Confirmar Funcionalidad Post QR', { qr_estado: 'Menos24' }, { servicio_post_qr: 'Si' }, 'servicio_normalizado_qr', 'Completada'],
       ['Form Escalar Gestor QR', { qr_estado: 'Cumplidas24' }, { gestor_qr_ok: 'Si' }, 'gestor_qr_vencido', 'Escalada'],
+      ['Form Escalar Gestor QR', { qr_estado: 'Menos24', servicio_post_qr: 'No', qr_premisas_ok: 'No', qr_reenvio_confirmado: 'Si', qr_reenvio_ok: 'No' }, { gestor_qr_ok: 'Si' }, 'gestor_qr_renovacion', 'Escalada'],
       ['Form Escalar Gestor NIP', { linea_portada: 'Si', portacion_completada: 'No', nip_estado: 'Vencido' }, { gestor_nip_ok: 'Si' }, 'gestor_nip_vencido', 'Escalada'],
       ...['Recibido', 'Pendiente'].map(value => ['Form Escalar CRM BAM', { linea_portada: 'Si', portacion_completada: 'No', nip_estado: value },
         { crm_bam_ok: 'Si' }, 'escalado_crm_bam', 'Escalada']),
       ['Form Cierre Sin Recursos', { suma_ok: 'PrepagoSinRecursos' }, { cierre_sin_recursos_ok: 'Si' }, 'no_aplica_sin_recursos', 'Completada'],
+      ['Form Cierre Sin Recursos', { suma_ok: 'PospagoSinRecursos' }, { cierre_sin_recursos_ok: 'Si' }, 'no_aplica_sin_recursos', 'Completada'],
     ];
     for (const [name, answers, selected, expected, state] of endings2) {
       const session = 'f0-recorrido-2-' + scenarios;
@@ -91,6 +94,12 @@ async function main() {
       const prepared = await save(2, formData(2, name, session, { tipo_sim: 'eSIM', ...answers }, selected));
       assert.equal(prepared.next_step, 'fin_etapa_2');
       await verify(session, 3, expected, state);
+      if (expected === 'gestor_qr_renovacion') {
+        const answers = (await db.query('SELECT respuestas_json FROM wflow.gestiones_log WHERE workflow_session = $1 AND numero_etapa = 2', [session])).rows[0].respuestas_json;
+        assert.equal(answers.qr_premisas_ok, 'No');
+        assert.equal(answers.qr_reenvio_confirmado, 'Si');
+        assert.equal(answers.qr_reenvio_ok, 'No');
+      }
       // Un reintento no duplica la etapa ni pierde la referencia inicial.
       await save(2, formData(2, name, session, { tipo_sim: 'eSIM', ...answers }, selected));
       assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM wflow.gestiones_log WHERE workflow_session = $1', [session])).rows[0].n, 3);
