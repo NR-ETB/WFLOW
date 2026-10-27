@@ -11,9 +11,9 @@ const initialUrlCode = `function initialManagementUrl(value) {
   return match[1] + pathname.slice(0, pathname.indexOf(marker)) + '/webhook/etb-form-inicial';
 }`;
 // El enlace absoluto abre la entrada publicada, incluso desde una ejecución de prueba.
-// _self reinicia dentro del panel del CRM, incluso con sandbox y orígenes distintos.
-// No se transmite la sesión cerrada ni se navega la ventana principal.
-const completionScript = `function showCompletion(){var card=document.querySelector(".card");if(!card)return;card.innerHTML="<div class='completion'><div class='completion-icon' aria-hidden='true'>&#10003;</div><h1 class='completion-title'>Gestión finalizada</h1><p class='completion-copy'>Las respuestas fueron guardadas correctamente.</p><p class='completion-hint'>Puedes iniciar otra atención en esta misma pestaña.</p></div>";if(initialUrl){var link=document.createElement("a");link.id="newManagementLink";link.className="btn btn-primary";link.textContent="Iniciar nueva gestión";link.href=initialUrl;link.target="_self";link.style.cssText="display:flex;align-items:center;justify-content:center;margin-top:24px;text-decoration:none;min-height:56px;white-space:normal;text-align:center";card.querySelector(".completion").appendChild(link);}}`;
+// GET nativo en _self: no depende del enrutamiento de enlaces ni de acceder a
+// window.top. El formulario vacío nunca transmite la sesión o el cliente anterior.
+const completionScript = `function showCompletion(){var card=document.querySelector(".card");if(!card)return;card.innerHTML="<div class='completion'><div class='completion-icon' aria-hidden='true'>&#10003;</div><h1 class='completion-title'>Gestión finalizada</h1><p class='completion-copy'>Las respuestas fueron guardadas correctamente.</p><p class='completion-hint'>Puedes iniciar otra atención en esta misma pestaña.</p></div>";if(initialUrl){var restart=document.createElement("form");restart.id="newManagementForm";restart.method="get";restart.action=initialUrl;restart.target="_self";var button=document.createElement("button");button.id="newManagementLink";button.type="submit";button.className="btn btn-primary";button.textContent="Iniciar nueva gestión";button.style.cssText="display:flex;align-items:center;justify-content:center;margin-top:24px;min-height:56px;white-space:normal;text-align:center;width:100%";restart.appendChild(button);card.querySelector(".completion").appendChild(restart);}}`;
 let changed = 0;
 for (let stage = 1; stage <= 3; stage++) {
   const file = path.join(root, `Ningun Servicio Funciona - ${stage}.json`);
@@ -58,6 +58,8 @@ return [{json:{html_response:html.replace('</main>', restart + '</main>')}}];`);
     // Actualiza también cierres definitivos que ya tenían el enlace instalado.
     if (node.name === 'HTML Cierre Definitivo') {
       code = code.replace('id="newManagementLink" target="_top"', 'id="newManagementLink" target="_self"');
+      code = code.replace(/^const restart = initialUrl \? .*$/m,
+        `const restart = initialUrl ? '<form id="newManagementForm" method="GET" target="_self" action="' + esc(initialUrl) + '"><button id="newManagementLink" type="submit" style="display:block;width:100%;border:0;margin-top:24px;padding:17px;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;text-align:center;font:700 16px system-ui;cursor:pointer">Iniciar nueva gestión</button></form>' : '';`);
     }
     if (code !== node.parameters.jsCode) { node.parameters.jsCode = code; changed++; }
   }

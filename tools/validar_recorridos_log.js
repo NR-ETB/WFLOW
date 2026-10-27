@@ -67,6 +67,8 @@ async function main() {
       ['Form Escalar GESTFAC', { linea_activa: 'No' }, { escalado_ok: 'Si' }, 'gestfac', 'Escalada'],
       ['Form Escalar Gestor', { iccid_valido: 'No' }, { gestor_ok: 'Si' }, 'gestor_sincronizacion', 'Escalada'],
       ['Form Saldo Pendiente', { pago_al_dia: 'No' }, { pago_pendiente_informado: 'Si' }, 'pago_pendiente', 'Pendiente'],
+      ['Form Escalar GESTFAC', { linea_activa: 'No', pago_al_dia: 'No', pago_pendiente_informado: 'PagoRealizado', pago_confirmado_cliente: 'Si' },
+        { escalado_ok: 'Si' }, 'gestfac', 'Escalada'],
       ...['TransferirDocumentacion', 'GestionarCanalDigital', 'GestionDigitalRealizada'].map(value =>
         ['Form Enviar Doc', { registro_imei_ok: 'No' }, { doc_enviada: value }, null, 'Completada']),
     ];
@@ -75,6 +77,11 @@ async function main() {
       await initial(session);
       const prepared = await save(1, formData(1, name, session, answers, selected));
       await verify(session, 2, expected || prepared.resultado_etapa_1, state);
+      if (answers.pago_confirmado_cliente === 'Si') {
+        const saved = (await db.query('SELECT respuestas_json FROM wflow.gestiones_log WHERE workflow_session = $1 AND numero_etapa = 1', [session])).rows[0].respuestas_json;
+        assert.equal(saved.pago_confirmado_cliente, 'Si');
+        assert.equal(saved.pago_al_dia, 'No');
+      }
     }
     const endings2 = [
       ['Form Confirmar Funcionalidad Post QR', { qr_estado: 'Instalado' }, { servicio_post_qr: 'Si' }, 'servicio_normalizado_qr', 'Completada'],

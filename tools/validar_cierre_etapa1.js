@@ -38,7 +38,7 @@ for (const mode of ['production', 'test']) for (const [name, field, outcome] of 
   assert.equal(saved.estado_gestion, answer === 'Si' ? 'Escalada' : 'Pendiente');
   const response = renderClosure(saved, { workflow_session: saved.workflow_session, registro_confirmado: 1 });
   assert.ok(response.includes('Iniciar nueva gestión'));
-  assert.ok(response.includes('href="https://n8n.test/base/webhook/etb-form-inicial"'));
+  assert.ok(response.includes('action="https://n8n.test/base/webhook/etb-form-inicial"'));
   assert.ok(response.includes(answer === 'Si' ? 'registrado como enviado' : 'El envío queda pendiente'));
   assert.throws(() => renderClosure(saved, {}), /no confirmó/);
   assert.throws(() => renderClosure(saved, { workflow_session: 'f0-otra', registro_confirmado: 1 }), /no confirmó/);

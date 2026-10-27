@@ -19,9 +19,11 @@ const put = node => {
 };
 const edge = node => ({ node, type: 'main', index: 0 });
 const connect = (name, ...targets) => { workflow.connections[name] = { main: targets.map(target => [edge(target)]) }; };
-const payment = get('Form Confirmar Pago');
-patchCfg(payment, cfg => ({ ...cfg, finishToStart: false, finishToStartWhen: {}, outcome: null, nextStep: null }));
-payment.parameters.jsCode = payment.parameters.jsCode.replaceAll('Confirmar y reconectar', 'Continuar');
+const payment = workflow.nodes.find(node => node.name === 'Form Confirmar Pago');
+if (payment) {
+  patchCfg(payment, cfg => ({ ...cfg, finishToStart: false, finishToStartWhen: {}, outcome: null, nextStep: null }));
+  payment.parameters.jsCode = payment.parameters.jsCode.replaceAll('Confirmar y reconectar', 'Continuar');
+}
 const message = 'Si el cliente presenta saldos pendientes de pago, deberá realizar el pago correspondiente para poder continuar con la gestión y contar nuevamente con el servicio.';
 const form = { id: 'saldo-pendiente-form', name: 'Form Saldo Pendiente', type: 'n8n-nodes-base.code',
   typeVersion: 2, position: [0, 0], parameters: { jsCode: get('Form Verificar Linea').parameters.jsCode } };

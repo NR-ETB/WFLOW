@@ -16,15 +16,15 @@ for (const [name, field] of [['Form Escalar GESTFAC', 'escalado_ok'], ['Form Esc
 }
 assert.equal(getCfg('Form Escalar GESTFAC').subtitle,
   'Si la línea se encuentra suspendida o cortada por falta de pago, pero el cliente confirma que ya realizó el pago correspondiente, se debe escalar el caso a través de GESTFAC para validar y gestionar la reconexión del servicio.');
-const payment = getCfg('Form Confirmar Pago');
+const payment = getCfg('Form Verificar Linea');
 assert.deepEqual(payment.finishToStartWhen, {});
-assert.equal(payment.outcome, null);
-assert.ok(!nodes.get('Form Confirmar Pago').parameters.jsCode.includes('Confirmar y reconectar'));
+assert.ok(!nodes.has('Form Confirmar Pago'));
+assert.ok(nodes.get('Form Verificar Linea').parameters.jsCode.includes('function unifiedPaymentOptions()'));
 assert.equal(workflow.connections['IF pago_al_dia'].main[1][0].node, 'Form Saldo Pendiente');
-assert.equal(workflow.connections['IF pago_al_dia'].main[0][0].node, 'Form Validar ICCID');
+assert.equal(workflow.connections['IF pago_al_dia'].main[0][0].node, 'IF linea_activa');
 const cfg = getCfg('Form Saldo Pendiente');
 assert.equal(cfg.outcome, 'pago_pendiente');
-assert.equal(cfg.options.length, 1);
+assert.deepEqual(cfg.options.map(option => option.value), ['Si', 'PagoRealizado']);
 assert.ok(cfg.subtitle.includes('deberá realizar el pago correspondiente'));
 const html = run('Form Saldo Pendiente', { __workflow_session: 'f0-test', pago_al_dia: 'No' }).html_response;
 const query = Object.fromEntries([...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/g)].map(m => [m[1], m[2]]));

@@ -25,12 +25,13 @@ for (let stage = 1; stage <= 3; stage++) {
       let link;
       const card = { innerHTML: '', querySelector: () => ({ appendChild(value) { link = value; } }) };
       vm.runInNewContext(functionCode + 'showCompletion();', { initialUrl,
-        document: { querySelector: () => card, createElement: () => ({ style: {} }) } });
-      assert.equal(link.textContent, 'Iniciar nueva gestión');
-      assert.equal(link.href, 'https://n8n.example.test/prefix/webhook/etb-form-inicial');
+        document: { querySelector: () => card, createElement: () => ({ style: {}, children: [], appendChild(child) { this.children.push(child); } }) } });
+      assert.equal(link.children[0].textContent, 'Iniciar nueva gestión');
+      assert.equal(link.method, 'get');
+      assert.equal(link.action, 'https://n8n.example.test/prefix/webhook/etb-form-inicial');
       assert.equal(link.target, '_self');
-      assert.equal(new URL(link.href).search, '');
-      assert.equal(new URL(link.href).hash, '');
+      assert.equal(new URL(link.action).search, '');
+      assert.equal(new URL(link.action).hash, '');
       assert.ok(!card.innerHTML.includes('cerrar esta ventana'));
       cases++;
     }
@@ -41,7 +42,7 @@ const finalHtml = new Function('$', '$execution', final.parameters.jsCode)(name 
   name === 'Consultar Resumen Gestion Actual' ? { resultado_etapa_3: 'escalado_segundo_nivel' } :
     { workflow_session: 'f0-anterior', observaciones_asesor: 'Se escaló para revisión técnica.' } } }),
   { resumeUrl: 'https://n8n.example.test/prefix/webhook-waiting/ultimo' })[0].json.html_response;
-assert.ok(finalHtml.includes('href="https://n8n.example.test/prefix/webhook/etb-form-inicial"'));
+assert.ok(finalHtml.includes('action="https://n8n.example.test/prefix/webhook/etb-form-inicial"'));
 assert.ok(finalHtml.includes('target="_self"'));
 assert.ok(finalHtml.includes('Se escaló para revisión técnica.'));
 const initial = load(0).nodes.find(n => n.name === 'Formulario Inicial');

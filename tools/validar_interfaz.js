@@ -84,7 +84,13 @@ async function main() {
           { webhookUrl: url.href }, { id: 'nueva-' + newExecutions })[0].json.html_response;
         await route.fulfill({ status: 200, contentType: 'text/html', body: html });
       } else if (url.pathname.includes('/webhook-waiting/') || url.pathname === '/webhook/etb-form-parte-2-continuar') {
-        if (url.searchParams.get('pago_al_dia') === 'No' && !url.searchParams.has('pago_pendiente_informado')) {
+        if (url.searchParams.get('qr_estado') === 'Instalado' && !url.searchParams.has('servicio_post_qr') && !url.searchParams.has('__outcome')) {
+          await route.fulfill({ status: 200, contentType: 'text/html', body: render(2, 'Form Linea Portada', { ...input, query: Object.fromEntries(url.searchParams) }) });
+        } else if (url.searchParams.get('pago_pendiente_informado') === 'PagoRealizado' && !url.searchParams.has('escalado_ok')) {
+          const marked = new Function('$json', workflows[1].nodes.find(n => n.name === 'Marcar Pago Reportado Cliente').parameters.jsCode)(
+            { query: Object.fromEntries(url.searchParams) })[0].json;
+          await route.fulfill({ status: 200, contentType: 'text/html', body: render(1, 'Form Escalar GESTFAC', marked) });
+        } else if (url.searchParams.get('pago_al_dia') === 'No' && !url.searchParams.has('pago_pendiente_informado')) {
           await route.fulfill({ status: 200, contentType: 'text/html', body: render(1, 'Form Saldo Pendiente', {
             ...input, query: Object.fromEntries(url.searchParams),
           }) });
@@ -109,7 +115,7 @@ async function main() {
         await page.locator('#newManagementLink').waitFor();
         assert.ok(!(await page.locator('body').innerText()).includes('Test workflow'));
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-        assert.equal(await page.locator('#newManagementLink').getAttribute('target'), '_self');
+        assert.equal(await page.locator('#newManagementForm').getAttribute('target'), '_self');
         const count = newExecutions;
         await page.locator('#newManagementLink').click();
         await page.locator('#initialForm').waitFor();
@@ -119,21 +125,39 @@ async function main() {
           assert.equal(await page.locator('#' + field).inputValue(), '');
         }
       }
-      await page.setContent(render(1, 'Form Confirmar Pago', input));
+      await page.setContent(render(1, 'Form Verificar Linea', input));
+      await page.locator('input[name="linea_activa"][value="No"]').evaluate(element => { element.checked = true; });
       await page.locator('input[name="pago_al_dia"][value="No"]').evaluate(element => {
         element.checked = true;
         element.dispatchEvent(new Event('change', { bubbles: true }));
       });
       assert.ok(!(await page.locator('#submitBtn').innerText()).includes('reconectar'));
       await page.locator('#submitBtn').click();
-      await page.locator('input[name="pago_pendiente_informado"]').waitFor();
+      await page.locator('input[name="pago_pendiente_informado"][value="Si"]').waitFor();
       assert.ok((await page.locator('.card-sub').innerText()).includes('deberá realizar el pago correspondiente'));
-      await page.locator('input[name="pago_pendiente_informado"]').evaluate(element => { element.checked = true; });
+      await page.locator('input[name="pago_pendiente_informado"][value="Si"]').evaluate(element => { element.checked = true; });
       await page.locator('#submitBtn').click();
       await page.locator('#newManagementLink').waitFor();
       assert.ok((await page.locator('.copy').innerText()).includes('deberá realizar el pago correspondiente'));
       await page.locator('#newManagementLink').click();
       await page.locator('#initialForm').waitFor();
+      await page.setContent(render(1, 'Form Saldo Pendiente', { ...input,
+        query: { ...input.query, linea_activa: 'No', pago_al_dia: 'No' } }));
+      await page.locator('input[value="PagoRealizado"]').evaluate(element => { element.checked = true; });
+      await page.locator('#submitBtn').click();
+      await page.locator('input[name="escalado_ok"]').waitFor();
+      assert.ok((await page.locator('.card-sub').innerText()).includes('el cliente confirma que ya realizó el pago'));
+      await page.locator('input[name="escalado_ok"]').evaluate(element => { element.checked = true; });
+      await page.locator('#submitBtn').click();
+      await page.locator('#newManagementLink').waitFor();
+      assert.ok((await page.locator('.copy').innerText()).includes('registrado como enviado a GESTFAC'));
+      await page.locator('#newManagementLink').click();
+      await page.locator('#initialForm').waitFor();
+      await page.setContent(render(2, 'Form Gestionar QR', input));
+      await page.locator('input[value="Instalado"]').evaluate(element => { element.checked = true; });
+      await page.locator('#submitBtn').click();
+      await page.locator('input[name="linea_portada"]').first().waitFor();
+      assert.equal(await page.locator('input[name="servicio_post_qr"], input[name="qr_premisas_ok"]').count(), 0);
     }
     assert.equal(popups, 0, 'El reinicio no abre otra pestaña');
     assert.equal(errors.length, 0, 'JavaScript del navegador sin errores: ' + errors.join('; '));
@@ -141,7 +165,7 @@ async function main() {
     fs.mkdirSync(output, { recursive: true });
     for (const width of [360, 1366]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const [name, file] of [['Form Saldo Pendiente', 'saldo'], ['Form Escalar GESTFAC', 'gestfac'],
+      for (const [name, file] of [['Form Verificar Linea', 'linea-pagos'], ['Form Saldo Pendiente', 'saldo'], ['Form Escalar GESTFAC', 'gestfac'],
         ['Form Escalar Gestor', 'sincronizacion'], ['Form Consultar Registro IMEI', 'imei']]) {
         await page.setContent(render(1, name, input));
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

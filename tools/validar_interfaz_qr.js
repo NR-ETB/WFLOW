@@ -106,8 +106,8 @@ async function main() {
       await answer(frame, 'gestor_qr_ok', 'Si');
       await frame.locator('#newManagementLink').waitFor();
       await frame.locator('#newManagementLink').click();
-      await page.locator('#initialForm').waitFor();
-      assert.equal(await page.locator('input[name="workflow_session"]').inputValue(), 'f0-qr-nueva');
+      await frame.locator('#initialForm').waitFor();
+      assert.equal(await frame.locator('input[name="workflow_session"]').inputValue(), 'f0-qr-nueva');
       frame = await mount('premisas');
       await answer(frame, 'qr_premisas_ok', 'Si');
       await frame.locator('input[name="linea_portada"]').first().waitFor();

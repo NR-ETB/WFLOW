@@ -159,8 +159,8 @@ for (const required of [
   if (!names.has(required)) errors.push(`Falta el paso obligatorio de cobertura: ${required}`);
 }
 if (target('IF linea_activa', 0) !== 'Form Validar Cobertura y Viaje' ||
-    target('IF Volver Validar Cobertura y Viaje', 1) !== 'Form Confirmar Pago') {
-  errors.push('La cobertura no está ubicada entre la línea activa y la validación de pagos');
+    target('IF Volver Validar Cobertura y Viaje', 1) !== 'Form Validar ICCID') {
+  errors.push('La cobertura no continúa a ICCID después de validar línea y pagos juntos');
 }
 const coverageForm = names.get('Form Validar Cobertura y Viaje');
 const coverageCfgMatch = coverageForm?.parameters?.jsCode?.match(/^const cfg = (\{.*\});$/m);
@@ -196,10 +196,10 @@ for (const marker of [
     errors.push(`La validación de cobertura no obliga a abrir el mapa oficial ETB: falta ${marker}`);
   }
 }
-const paymentForm = names.get('Form Confirmar Pago');
+const paymentForm = names.get('Form Verificar Linea');
 const paymentCode = paymentForm?.parameters?.jsCode || '';
-for (const marker of ['function syncPaymentButton()', '"Continuar":"Siguiente"']) {
-  if (!paymentCode.includes(marker)) errors.push(`El botón de pagos no cambia según el saldo: falta ${marker}`);
+for (const marker of ['function unifiedPaymentOptions()', 'name="pago_al_dia"', 'ESTADO DE PAGOS']) {
+  if (!paymentCode.includes(marker)) errors.push(`La pantalla inicial no unifica línea y pagos: falta ${marker}`);
 }
 
 const imeiPublic = names.get('Form Consultar Registro IMEI');

@@ -77,7 +77,7 @@ async function testClient(status, body, rejects = false, selected = 'Si') {
   let requested = '';
   const context = {
     document: {
-      createElement() { return { style: {} }; },
+      createElement() { return { style: {}, appendChild() {} }; },
       getElementById(id) { return ({ f: form, errBanner: error, submitBtn: button })[id] || null; },
       querySelector() { return card; },
     },
