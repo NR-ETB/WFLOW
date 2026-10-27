@@ -28,7 +28,7 @@ for (let stage = 1; stage <= 3; stage++) {
         document: { querySelector: () => card, createElement: () => ({ style: {} }) } });
       assert.equal(link.textContent, 'Iniciar nueva gestión');
       assert.equal(link.href, 'https://n8n.example.test/prefix/webhook/etb-form-inicial');
-      assert.equal(link.target, '_top');
+      assert.equal(link.target, '_self');
       assert.equal(new URL(link.href).search, '');
       assert.equal(new URL(link.href).hash, '');
       assert.ok(!card.innerHTML.includes('cerrar esta ventana'));
@@ -42,7 +42,7 @@ const finalHtml = new Function('$', '$execution', final.parameters.jsCode)(name 
     { workflow_session: 'f0-anterior', observaciones_asesor: 'Se escaló para revisión técnica.' } } }),
   { resumeUrl: 'https://n8n.example.test/prefix/webhook-waiting/ultimo' })[0].json.html_response;
 assert.ok(finalHtml.includes('href="https://n8n.example.test/prefix/webhook/etb-form-inicial"'));
-assert.ok(finalHtml.includes('target="_top"'));
+assert.ok(finalHtml.includes('target="_self"'));
 assert.ok(finalHtml.includes('Se escaló para revisión técnica.'));
 const initial = load(0).nodes.find(n => n.name === 'Formulario Inicial');
 const renderInitial = id => new Function('$json', '$execution', initial.parameters.jsCode)(

@@ -67,7 +67,7 @@ function addIf(name, field, value, yes, no) {
 addForm('Form Premisas SIM Virtual', 'qr_premisas_ok', 'Premisas para instalar la SIM Virtual ETB',
   'Verifica los requisitos y guía al cliente en los pasos de instalación. Si el QR funciona, continúa al soporte normal de la eSIM.',
   '¿EL QR FUNCIONA DESPUÉS DE APLICAR LAS PREMISAS?',
-  fs.readFileSync(path.join(__dirname, 'premisas_sim_virtual.html'), 'utf8'));
+  fs.readFileSync(path.join(__dirname, 'premisas_sim_virtual.html'), 'utf8').replace(/\r\n/g, '\n'));
 addForm('Form Reenvio QR SUMA', 'qr_reenvio_ok', 'Reenviar el código QR desde SUMA',
   'El asesor debe realizar el reenvío manual del QR desde SUMA. Este flujo no envía el código automáticamente.',
   '¿EL QR FUNCIONA DESPUÉS DEL REENVÍO?',

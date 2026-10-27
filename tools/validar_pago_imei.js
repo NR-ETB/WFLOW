@@ -14,6 +14,8 @@ for (const [name, field] of [['Form Escalar GESTFAC', 'escalado_ok'], ['Form Esc
   assert.ok(!html.includes('No fue posible escalar'));
   assert.ok(!html.includes('No fue posible enviarlo'));
 }
+assert.equal(getCfg('Form Escalar GESTFAC').subtitle,
+  'Si la línea se encuentra suspendida o cortada por falta de pago, pero el cliente confirma que ya realizó el pago correspondiente, se debe escalar el caso a través de GESTFAC para validar y gestionar la reconexión del servicio.');
 const payment = getCfg('Form Confirmar Pago');
 assert.deepEqual(payment.finishToStartWhen, {});
 assert.equal(payment.outcome, null);

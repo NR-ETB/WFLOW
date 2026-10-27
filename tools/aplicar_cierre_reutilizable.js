@@ -11,8 +11,9 @@ const initialUrlCode = `function initialManagementUrl(value) {
   return match[1] + pathname.slice(0, pathname.indexOf(marker)) + '/webhook/etb-form-inicial';
 }`;
 // El enlace absoluto abre la entrada publicada, incluso desde una ejecución de prueba.
-// _top sale del iframe de n8n sin crear otra pestaña. No se transmite la sesión cerrada.
-const completionScript = `function showCompletion(){var card=document.querySelector(".card");if(!card)return;card.innerHTML="<div class='completion'><div class='completion-icon' aria-hidden='true'>&#10003;</div><h1 class='completion-title'>Gestión finalizada</h1><p class='completion-copy'>Las respuestas fueron guardadas correctamente.</p><p class='completion-hint'>Puedes iniciar otra atención en esta misma pestaña.</p></div>";if(initialUrl){var link=document.createElement("a");link.id="newManagementLink";link.className="btn btn-primary";link.textContent="Iniciar nueva gestión";link.href=initialUrl;link.target="_top";link.style.cssText="display:flex;align-items:center;justify-content:center;margin-top:24px;text-decoration:none;min-height:56px;white-space:normal;text-align:center";card.querySelector(".completion").appendChild(link);}}`;
+// _self reinicia dentro del panel del CRM, incluso con sandbox y orígenes distintos.
+// No se transmite la sesión cerrada ni se navega la ventana principal.
+const completionScript = `function showCompletion(){var card=document.querySelector(".card");if(!card)return;card.innerHTML="<div class='completion'><div class='completion-icon' aria-hidden='true'>&#10003;</div><h1 class='completion-title'>Gestión finalizada</h1><p class='completion-copy'>Las respuestas fueron guardadas correctamente.</p><p class='completion-hint'>Puedes iniciar otra atención en esta misma pestaña.</p></div>";if(initialUrl){var link=document.createElement("a");link.id="newManagementLink";link.className="btn btn-primary";link.textContent="Iniciar nueva gestión";link.href=initialUrl;link.target="_self";link.style.cssText="display:flex;align-items:center;justify-content:center;margin-top:24px;text-decoration:none;min-height:56px;white-space:normal;text-align:center";card.querySelector(".completion").appendChild(link);}}`;
 let changed = 0;
 for (let stage = 1; stage <= 3; stage++) {
   const file = path.join(root, `Ningun Servicio Funciona - ${stage}.json`);
@@ -51,8 +52,12 @@ for (let stage = 1; stage <= 3; stage++) {
       code = initialUrlCode + `\nlet initialUrl = initialManagementUrl(typeof $execution === 'object' ? $execution.resumeUrl : '');
 if (!initialUrl) { try { initialUrl = initialManagementUrl($('Apertura Etapa 3').first().json.webhookUrl); } catch {} }
 ` + code;
-      code = code.replace("return [{json:{html_response:html}}];", `const restart = initialUrl ? '<a id="newManagementLink" target="_top" style="display:block;margin-top:24px;padding:17px;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;text-align:center;text-decoration:none;font-weight:700" href="' + esc(initialUrl) + '">Iniciar nueva gestión</a>' : '';
+      code = code.replace("return [{json:{html_response:html}}];", `const restart = initialUrl ? '<a id="newManagementLink" target="_self" style="display:block;margin-top:24px;padding:17px;border-radius:13px;background:linear-gradient(135deg,#1da1f2,#0d80cc);color:#fff;text-align:center;text-decoration:none;font-weight:700" href="' + esc(initialUrl) + '">Iniciar nueva gestión</a>' : '';
 return [{json:{html_response:html.replace('</main>', restart + '</main>')}}];`);
+    }
+    // Actualiza también cierres definitivos que ya tenían el enlace instalado.
+    if (node.name === 'HTML Cierre Definitivo') {
+      code = code.replace('id="newManagementLink" target="_top"', 'id="newManagementLink" target="_self"');
     }
     if (code !== node.parameters.jsCode) { node.parameters.jsCode = code; changed++; }
   }

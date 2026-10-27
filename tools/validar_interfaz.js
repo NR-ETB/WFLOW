@@ -109,7 +109,7 @@ async function main() {
         await page.locator('#newManagementLink').waitFor();
         assert.ok(!(await page.locator('body').innerText()).includes('Test workflow'));
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-        assert.equal(await page.locator('#newManagementLink').getAttribute('target'), '_top');
+        assert.equal(await page.locator('#newManagementLink').getAttribute('target'), '_self');
         const count = newExecutions;
         await page.locator('#newManagementLink').click();
         await page.locator('#initialForm').waitFor();

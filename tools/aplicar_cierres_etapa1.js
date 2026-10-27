@@ -16,6 +16,9 @@ for (const name of ['Form Escalar GESTFAC', 'Form Escalar Gestor']) {
     cfg.finishToStart = false;
     cfg.finishToStartWhen = {};
     cfg.options = cfg.options.filter(option => option.value === 'Si');
+    if (name === 'Form Escalar GESTFAC') {
+      cfg.subtitle = 'Si la línea se encuentra suspendida o cortada por falta de pago, pero el cliente confirma que ya realizó el pago correspondiente, se debe escalar el caso a través de GESTFAC para validar y gestionar la reconexión del servicio.';
+    }
     return 'const cfg = ' + JSON.stringify(cfg) + ';';
   });
   node.notes = 'Finalizar envía el formulario mediante navegación normal al Wait activo. PostgreSQL confirma el guardado antes de mostrar el cierre. No depende de fetch desde el iframe.';
@@ -24,7 +27,7 @@ const name = 'HTML Cierre Etapa 1';
 const node = {
   id: 'cierre-visual-etapa-1', name, type: 'n8n-nodes-base.code', typeVersion: 2,
   position: [0, 0], onError: 'continueErrorOutput',
-  parameters: { jsCode: fs.readFileSync(path.join(__dirname, 'ui_cierre_etapa1.js'), 'utf8') },
+  parameters: { jsCode: fs.readFileSync(path.join(__dirname, 'ui_cierre_etapa1.js'), 'utf8').replace(/\r\n/g, '\n') },
 };
 const existing = workflow.nodes.find(n => n.name === name);
 if (existing) Object.assign(existing, node, { position: existing.position }); else workflow.nodes.push(node);

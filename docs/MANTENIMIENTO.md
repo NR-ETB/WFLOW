@@ -74,6 +74,10 @@ ejecuciones n8n. La versión de los cuatro workflows debe publicarse como conjun
    credencial o tabla en la pantalla, ni una confirmación falsa.
 9. Revisa el canvas importado: notas legibles, bloques y conexiones. La prueba
    geométrica local no comprueba cómo los renderiza tu versión de n8n.
+10. Dentro del panel del CRM, finaliza y pulsa «Iniciar nueva gestión»: el CRM
+    debe permanecer abierto y flujo 0 debe mostrar una referencia nueva y los
+    tres campos vacíos. Regresión local: `node tools/validar_reinicio_iframe.js`
+    con Playwright disponible y Edge; simula las respuestas y el sandbox.
 
 No publicar cambios sin aceptar estas pruebas. Conservar la versión anterior y
 su respaldo; el retorno requiere conciliar también las escrituras nuevas.

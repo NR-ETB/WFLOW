@@ -89,7 +89,7 @@ siguen siendo necesarias; el requisito de «solo inserts» se aplica al flujo 0.
 
 Las pantallas de cierre de las etapas 1 y 2 y el cierre definitivo de la etapa 3
 incluyen «Iniciar nueva gestión». El enlace abre la entrada publicada del flujo 0
-en la misma pestaña, fuera del iframe de respuesta de n8n. No transmite la sesión
+en la misma pestaña y dentro del panel del CRM. No transmite la sesión
 anterior, respuestas ni datos iniciales. El flujo 0 genera una nueva referencia y
 muestra los tres campos vacíos. La gestión anterior y su log se conservan.
 
@@ -162,3 +162,28 @@ devolvió timeout; no se certifica su disponibilidad externa.
 `aplicar_cierres_etapa1.js` conserva las confirmaciones únicas y
 `aplicar_pago_imei.js` conserva el nuevo paso y enlace al regenerar mediante
 `preparar_postgres.js`. Publicar la etapa 1 actualizada para llevarlo a n8n.
+
+## Reinicio dentro del CRM y descripción GESTFAC · 27 de octubre de 2026
+
+Los enlaces «Iniciar nueva gestión» usan `target="_self"` en las tres etapas,
+incluidos el cierre HTML de etapa 1 y el cierre definitivo con observaciones.
+El destino sigue siendo la URL absoluta publicada de flujo 0, sin parámetros.
+Antes usaban `_top`, que intentaba navegar la ventana principal del CRM y podía
+quedar bloqueado por las restricciones del iframe contenedor.
+
+`node tools/validar_reinicio_iframe.js`, con Playwright disponible y Edge,
+reproduce el CRM y n8n en orígenes distintos, con dos iframes y sandbox. El
+botón anterior falla en esa prueba. La corrección comprueba siete tipos de
+cierre a 360 y 1366 px: un clic crea una gestión nueva, los tres campos quedan
+vacíos y se conservan el CRM y la pestaña. Todas las respuestas son simuladas;
+no se conecta a n8n remoto ni a la base productiva.
+
+La descripción de «Enviar el caso por GESTFAC» queda así:
+
+> Si la línea se encuentra suspendida o cortada por falta de pago, pero el cliente confirma que ya realizó el pago correspondiente, se debe escalar el caso a través de GESTFAC para validar y gestionar la reconexión del servicio.
+
+Los scripts de adaptación conservan ambos cambios al ejecutar
+`preparar_postgres.js`. Para aplicarlos al sitio, importar y publicar las etapas
+1, 2 y 3 actualizadas; después iniciar una gestión nueva desde flujo 0 y comprobar
+el reinicio dentro del CRM real. Las ejecuciones Wait ya iniciadas pueden
+conservar la versión anterior. La publicación remota sigue pendiente.
