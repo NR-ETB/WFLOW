@@ -78,6 +78,11 @@ ejecuciones n8n. La versión de los cuatro workflows debe publicarse como conjun
     debe permanecer abierto y flujo 0 debe mostrar una referencia nueva y los
     tres campos vacíos. Regresión local: `node tools/validar_reinicio_iframe.js`
     con Playwright disponible y Edge; simula las respuestas y el sandbox.
+11. En la pantalla unificada de línea/pagos, verifica las cuatro combinaciones.
+    Saldo pendiente debe mostrar el aviso; pago ya reportado debe llevar a GESTFAC,
+    sin perder la referencia ni fingir una reconexión.
+12. Selecciona «La eSIM quedó instalada»: debe abrir soporte normal, sin pasar por
+    funcionalidad ni premisas. Mantén la validación SUMA antes del soporte de equipo.
 
 No publicar cambios sin aceptar estas pruebas. Conservar la versión anterior y
 su respaldo; el retorno requiere conciliar también las escrituras nuevas.

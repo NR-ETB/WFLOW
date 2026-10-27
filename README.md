@@ -79,15 +79,18 @@ Vistas del diagnóstico: `wflow.vw_nsf_trazabilidad` y `wflow.vw_nsf_resumen`.
 
 - Cobertura y viaje: cuatro combinaciones. Abrir el mapa ETB es obligatorio para
   continuar; la pantalla muestra ese requisito.
-- Pagos: cuenta al día continúa al diagnóstico. Saldo pendiente abre el aviso de
-  pago obligatorio y registra que el cliente fue informado antes de cerrar. No
-  afirma que se haya hecho una reconexión automática.
+- Línea y pagos se validan en una sola pantalla. Línea activa/al día continúa a
+  cobertura e ICCID. Saldo pendiente abre el aviso de pago obligatorio. Si el
+  cliente informa que ya pagó, se registra esa declaración y deriva a GESTFAC.
+  Si aún debe pagar, se cierra como pendiente. No se realiza una reconexión automática.
 - IMEI: abrir `https://www.imeicolombia.com.co/` es obligatorio. IMEI bloqueado/no registrado
   deriva a documentación, cuyo canal se registra.
 - Únicamente SIM física y eSIM.
 - GESTFAC y sincronización: solo se muestra la confirmación de escalamiento
   realizado; se retiraron las opciones de envío/escalamiento no realizado.
-- QR: instalado/reutilizado dentro de 24 horas conduce a confirmar funcionalidad.
+- QR: «La eSIM quedó instalada» continúa directamente al soporte normal
+  (portación/SUMA), sin pasar por confirmación de funcionalidad ni premisas.
+  Reutilizar el QR dentro de 24 horas conduce a confirmar funcionalidad.
   Si funciona, cierra como `servicio_normalizado_qr`; si falla, muestra las premisas
   Android/iPhone. Si el QR funciona tras aplicarlas, continúa al soporte normal.
   Si no funciona, el asesor reenvía el QR manualmente desde SUMA y confirma la acción.

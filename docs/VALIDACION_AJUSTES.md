@@ -1,10 +1,10 @@
-# Validación de ajustes y trazabilidad — actualización del 26 de octubre de 2026
+# Validación de ajustes y trazabilidad — actualización del 27 de octubre de 2026
 
 ## Resultado y alcance
 
-Los cuatro archivos del repositorio pasan quince suites locales. Las pruebas
+Los cuatro archivos del repositorio pasan dieciséis suites locales. Las pruebas
 de interfaz usan Edge sin ventana, a 360 y 1366 píxeles, con las solicitudes de
-red simuladas o bloqueadas. Veintitrés recorridos utilizan campos HTML, código y
+red simuladas o bloqueadas. Veinticuatro recorridos utilizan campos HTML, código y
 parámetros SQL reales de los JSON contra PostgreSQL en memoria (PGlite).
 
 Esto no confirma la base productiva ni reproduce el motor de ejecución/Wait de
@@ -69,7 +69,7 @@ siguen siendo necesarias; el requisito de «solo inserts» se aplica al flujo 0.
 
 ## Reproducción y aceptación productiva
 
-1. Ejecutar `node tools/validar_todo.js` para las quince suites locales.
+1. Ejecutar `node tools/validar_todo.js` para las dieciséis suites locales.
 2. Ejecutar `node tools/validar_interfaz.js` con Playwright disponible mediante
    `NODE_PATH` y Edge instalado. El navegador se ejecuta sin ventana y bloquea red.
 3. Ejecutar `node tools/inspeccionar_publicacion.js` para diagnóstico GET. Código
@@ -165,7 +165,7 @@ devolvió timeout; no se certifica su disponibilidad externa.
 
 ## Reinicio dentro del CRM y descripción GESTFAC · 27 de octubre de 2026
 
-Los enlaces «Iniciar nueva gestión» usan `target="_self"` en las tres etapas,
+Los controles «Iniciar nueva gestión» usan `target="_self"` en las tres etapas,
 incluidos el cierre HTML de etapa 1 y el cierre definitivo con observaciones.
 El destino sigue siendo la URL absoluta publicada de flujo 0, sin parámetros.
 Antes usaban `_top`, que intentaba navegar la ventana principal del CRM y podía
@@ -187,3 +187,34 @@ Los scripts de adaptación conservan ambos cambios al ejecutar
 1, 2 y 3 actualizadas; después iniciar una gestión nueva desde flujo 0 y comprobar
 el reinicio dentro del CRM real. Las ejecuciones Wait ya iniciadas pueden
 conservar la versión anterior. La publicación remota sigue pendiente.
+
+## Línea/pagos unificados y continuidad eSIM · 27 de octubre de 2026
+
+La pantalla inicial captura tanto el estado de línea como el estado de pagos.
+Ambas respuestas son obligatorias. Se elimina el formulario separado de pagos
+y sus nodos de espera, sin dejar conexiones huérfanas ni notas vacías.
+
+- Activa y al día: cobertura e ICCID, sin repetir la pregunta de pagos.
+- Cualquier línea con saldo pendiente: aviso de pago obligatorio.
+- Suspendida/cortada y cliente al día: GESTFAC para reconexión.
+- En el aviso, cliente que confirma pago ya realizado: GESTFAC; el log conserva
+  el estado de saldo inicialmente informado y `pago_confirmado_cliente=Si`.
+- En el aviso, cliente que aún debe pagar: cierre `pago_pendiente`/`Pendiente`.
+
+La descripción GESTFAC coincide literalmente con la solicitada por el usuario.
+La captura enviada todavía contiene la descripción anterior; no se ha inspeccionado
+una ejecución remota actual ni se certifica que esa publicación esté actualizada.
+
+«La eSIM quedó instalada» llega directamente a portación/SUMA para continuar
+el soporte. No visita la confirmación de funcionalidad ni las premisas. Las rutas
+de reutilización antes de 24 horas y escalamiento después del plazo se conservan.
+
+El reinicio se refuerza como formulario GET nativo, vacío, con URL absoluta y
+destino `_self`. No requiere acceso a `window.top`, almacenamiento local o un
+controlador de enlaces del CRM. No transmite campos ni referencia de la atención
+anterior. Las pruebas con dos iframes verifican 14 cierres/reinicios, incluido el
+cierre con observaciones. Son simulaciones locales, no una validación del CRM
+real ni de permisos/sandbox de la publicación remota.
+
+Publicar las etapas 1, 2 y 3 compatibles e iniciar una gestión nueva desde flujo 0.
+Las ejecuciones Wait anteriores pueden seguir mostrando el código antiguo.

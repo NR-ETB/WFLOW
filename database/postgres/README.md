@@ -102,7 +102,7 @@ Si las tablas ya están instaladas, ejecuta `02_InicioSoloInserts.sql` en CRM_N8
 para actualizar únicamente la función del inicio. Si no existen, instala primero
 `00_Estructura.sql`. No es necesario borrar registros ni recrear la base.
 
-`node tools/validar_todo.js` ejecuta quince suites, incluyendo veintitrés recorridos que
+`node tools/validar_todo.js` ejecuta dieciséis suites, incluyendo veinticuatro recorridos que
 usan formularios, parámetros SQL y confirmaciones extraídos de los cuatro JSON.
 `node tools/inspeccionar_publicacion.js` revisa las entradas públicas con GET; sale
 con código 2 si detecta una publicación incompatible. No envía formularios ni
