@@ -41,7 +41,15 @@ const etapa2 = `SELECT
  CASE WHEN COUNT(*) >= 1 THEN 'Si' ELSE 'No' END AS contexto_valido,
  MAX(workflow_session) AS workflow_session, MAX(respuestas_json->>'tipo_sim') AS tipo_sim,
  MAX(resultado) AS resultado_etapa_2, MAX(next_step) AS next_step,
- MAX(respuestas_json->>'suma_ok') AS suma_ok
+ MAX(respuestas_json->>'suma_ok') AS suma_ok,
+ (SELECT usuario_asesor FROM wflow.gestiones WHERE workflow_session = $2) AS usuario_asesor,
+ (SELECT pqr FROM wflow.gestiones WHERE workflow_session = $2) AS pqr,
+ (SELECT contexto_json FROM wflow.gestiones_log
+   WHERE workflow_session = $2 AND codigo_flujo = 'ningunServicioFunciona'
+     AND codigo_etapa = 'validacionServicio' ORDER BY numero_intento DESC LIMIT 1) AS contexto_etapa_1,
+ (SELECT contexto_json FROM wflow.gestiones_log
+   WHERE workflow_session = $2 AND codigo_flujo = 'ningunServicioFunciona'
+     AND codigo_etapa = 'diagnosticoSim' ORDER BY numero_intento DESC LIMIT 1) AS contexto_etapa_2
 FROM wflow.gestiones_log
 WHERE workflow_session = $2
  AND codigo_flujo = 'ningunServicioFunciona' AND codigo_etapa = 'diagnosticoSim'

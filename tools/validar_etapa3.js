@@ -134,7 +134,7 @@ for (const name of forbiddenNames) if (nodes.has(name)) fail(`Nodo redundante pr
 const lookup = nodes.get('Consultar Contexto Etapa 2 PostgreSQL');
 if (!lookup?.parameters?.query?.includes('FROM wflow.gestiones_log')) fail('La consulta no fija wflow.gestiones_log');
 if (!lookup?.parameters?.query?.includes('WHERE workflow_session = $2')) fail('La consulta de etapa 3 reutiliza incorrectamente el parámetro $1');
-if (JSON.stringify(lookup?.parameters?.query?.match(/\$\d+/g)) !== JSON.stringify(['$1', '$2'])) fail('Los parámetros de etapa 3 no son posicionalmente seguros');
+if (JSON.stringify([...new Set(lookup?.parameters?.query?.match(/\$\d+/g))]) !== JSON.stringify(['$1', '$2'])) fail('Los parámetros de etapa 3 no son posicionalmente seguros');
 if (lookup?.parameters?.options?.queryReplacement !== '={{ [ $json.workflow_session, $json.workflow_session ] }}') fail('Los parámetros de consulta de etapa 3 son incorrectos');
 for (const marker of [
   "resultado = 'continuar_parte_3'",
@@ -170,7 +170,16 @@ function simulate(scenario) {
       if (cfg.outcome) query.__outcome = cfg.outcome;
       if (cfg.nextStep) query.__next_step = cfg.nextStep;
     }
-    if (node.type === 'n8n-nodes-base.if') {
+    if (current === 'Normalizar Escalar Segundo Nivel') {
+      const { fields } = require('./plantilla_segundo_nivel');
+      const body = { ...query, ...Object.fromEntries(fields.map(([key]) => ['segundo_nivel_' + key, 'Dato ficticio de prueba'])) };
+      query = new Function('$json', '$', node.parameters.jsCode)({ body }, () => ({ first: () => ({ json: {
+        workflow_session: query.workflow_session, usuario_asesor: 'asesor-prueba',
+      } }) }))[0].json.query;
+      current = target(current, 0);
+    } else if (current === 'IF Plantilla Escalar Segundo Nivel') {
+      current = target(current, 0);
+    } else if (node.type === 'n8n-nodes-base.if') {
       const conditions = node.parameters.conditions.conditions;
       const actualMatches = conditions.some((condition) => {
         const field = condition.leftValue.match(/\$json\.query\.([A-Za-z0-9_]+)/)?.[1];

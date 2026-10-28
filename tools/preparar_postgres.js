@@ -3,7 +3,7 @@
 // una versión v10 no incluida y otros vuelven a instalar el contrato MySQL.
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
-for (const script of ['adaptar_postgres', 'aplicar_cierre_reutilizable', 'aplicar_cierres_etapa1', 'aplicar_pago_imei', 'aplicar_premisas_qr', 'aplicar_unificacion_linea_qr', 'organizar_workflows', 'validar_todo']) {
+for (const script of ['adaptar_postgres', 'aplicar_cierre_reutilizable', 'aplicar_cierres_etapa1', 'aplicar_pago_imei', 'aplicar_premisas_qr', 'aplicar_unificacion_linea_qr', 'aplicar_plantilla_automatica', 'organizar_workflows', 'validar_todo']) {
   const result = spawnSync(process.execPath, [path.join(__dirname, script + '.js')], { stdio: 'inherit' });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status || 1);
