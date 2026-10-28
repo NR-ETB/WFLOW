@@ -63,6 +63,31 @@ La clave del log es `workflow_session + codigo_flujo + codigo_etapa + numero_int
 El UPSERT permite reintentar sin duplicar la etapa. El log guarda el estado actual
 por etapa/intento, no cada clic del asesor. Los errores técnicos de persistencia
 permanecen en la ejecución n8n; la pantalla recibe una respuesta controlada.
+
+### Plantilla automática para Segundo Nivel
+
+La pantalla de escalamiento recupera información de las etapas 1 y 2 de la misma
+sesión y las respuestas actuales del equipo. Completa automáticamente USUARIO
+desde el registro inicial, TIPO DE FALLA desde el diagnóstico y BLOQUEO desde la
+validación. Si el contexto contiene otros datos de la plantilla, también los reutiliza.
+Los campos que nunca se capturaron permanecen vacíos y se diligencian una sola
+vez en el editor del CRM. No se interpreta el número de conexión como número de
+línea ni el estado de recursos SUMA como validación de CHARGING o SAAW.
+
+La vista previa de los catorce campos cambia al escribir. `Copiar plantilla`
+copia la versión actual para pegarla manualmente en SUMA; no hace un envío
+automático. Todos los campos deben contener información o un `No aplica`
+declarado por el asesor. El usuario del asesor original no es editable.
+
+La confirmación envía POST al Wait de escalamiento. La plantilla y sus datos
+estructurados se guardan en `respuestas_json`; el texto también queda en
+`contexto_json`. Los borradores no se guardan con cada pulsación. Al volver a
+pantallas anteriores se descartan las ediciones manuales aún no confirmadas,
+para que esos datos no viajen por las URL GET. No se requieren tablas nuevas.
+
+Para activar esta mejora, importar y publicar la etapa 3 actualizada, incluyendo
+la consulta de contexto y el Wait configurado como POST. Las ejecuciones que ya
+estaban esperando conservan su versión anterior.
 Una operación sin confirmación no se presenta como guardada.
 
 | Parte | Código de flujo | Código de etapa | Número |

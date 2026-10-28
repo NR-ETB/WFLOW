@@ -4,7 +4,7 @@
 
 Los cuatro JSON raíz son la fuente actual de la lógica operativa. Editar el
 nodo correspondiente, ejecutar `node tools/preparar_postgres.js` y revisar el
-diff. Ese comando aplica contrato PostgreSQL, organización y diez suites.
+diff. Ese comando aplica contrato PostgreSQL, organización y diecisiete suites.
 
 `generar_flujo0.js` puede reconstruir el registro inicial, ya con PostgreSQL y
 stickies. Después ejecutar `preparar_postgres.js` para homogeneizar y validar.
@@ -17,6 +17,13 @@ aplicar toda la cadena de adaptaciones y validar antes de sustituir los archivos
 siempre se envían como un array de expresiones a un nodo Postgres v2.6.
 No concatenar respuestas del asesor dentro del SQL. No incluir credenciales,
 contraseñas ni datos personales de ejemplo en JSON, notas o capturas de pruebas.
+
+`plantilla_segundo_nivel.js` define los catorce campos, sus fuentes y el formato
+del texto copiado. `aplicar_plantilla_automatica.js` aplica el editor, consulta de
+contexto y recepción POST después de las otras adaptaciones. No sustituir el
+Wait de escalamiento por GET: los datos personales deben viajar en el cuerpo.
+El mismo formato se usa en la vista previa y en el log; no mantener plantillas
+duplicadas. Ejecutar también `validar_interfaz_plantilla.js` con Playwright/Edge.
 
 ## Bloques visuales
 

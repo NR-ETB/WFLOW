@@ -1,8 +1,8 @@
-# Validación de ajustes y trazabilidad — actualización del 27 de octubre de 2026
+# Validación de ajustes y trazabilidad — actualización del 28 de octubre de 2026
 
 ## Resultado y alcance
 
-Los cuatro archivos del repositorio pasan dieciséis suites locales. Las pruebas
+Los cuatro archivos del repositorio pasan diecisiete suites locales. Las pruebas
 de interfaz usan Edge sin ventana, a 360 y 1366 píxeles, con las solicitudes de
 red simuladas o bloqueadas. Veinticuatro recorridos utilizan campos HTML, código y
 parámetros SQL reales de los JSON contra PostgreSQL en memoria (PGlite).
@@ -10,6 +10,26 @@ parámetros SQL reales de los JSON contra PostgreSQL en memoria (PGlite).
 Esto no confirma la base productiva ni reproduce el motor de ejecución/Wait de
 n8n. No se dispone de una conexión autenticada a CRM_N8N. No se han publicado
 workflows, cambiado credenciales ni enviado formularios de prueba al servidor.
+
+## Plantilla automática de Segundo Nivel
+
+`validar_plantilla_automatica.js` ejecuta las consultas y el guardado de la plantilla
+contra PostgreSQL en memoria. Comprueba recuperación de los datos originales,
+catorce campos, conservación de ceros, escape HTML, rechazo de campos incompletos,
+usuario no sustituible desde el navegador y aislamiento entre sesiones. Verifica
+el texto y los campos estructurados después de guardar observaciones y cerrar.
+
+`validar_interfaz_plantilla.js` prueba la pantalla a 360 y 1366 píxeles dentro de
+un iframe aislado: previsualización en vivo, copia actualizada, bloqueo de copia
+incompleta, alternativa manual cuando el portapapeles falla y envío POST sin datos
+personales en la URL. El retorno no envía los campos personales del editor.
+Las solicitudes se interceptan; no se publica ni se contacta SUMA.
+
+La mejora reutiliza únicamente información capturada en la gestión. Los datos
+faltantes se completan en la pantalla final. No hay integración automática con
+otros formularios externos del CRM ni autoguardado de borradores por pulsación.
+El contrato POST del Wait se contrastó con la [documentación de n8n](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait/).
+Todavía requiere una aceptación de extremo a extremo en n8n publicado y CRM_N8N.
 
 ## Diferencias encontradas en la publicación
 
